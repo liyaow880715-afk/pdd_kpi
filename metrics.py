@@ -193,6 +193,10 @@ def aggregate_product_metrics(daily_metrics_list: List[pd.DataFrame]) -> pd.Data
         "refund_count", "cancel_count", "quantity", "valid_quantity",
         "organic_orders", "organic_gmv",
     ]
+    # 成本相关字段若已存在则一起汇总
+    for cost_col in ["total_cost", "link_gross_profit", "profit_loss"]:
+        if cost_col in combined.columns:
+            sum_cols.append(cost_col)
     sum_cols = [c for c in sum_cols if c in combined.columns]
 
     agg = combined.groupby(group_cols, as_index=False)[sum_cols].sum()

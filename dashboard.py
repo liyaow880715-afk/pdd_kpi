@@ -849,6 +849,7 @@ def render_store_overview(config: dict = None):
 
     from metrics import compute_overall_kpis, aggregate_product_metrics
     from storage import load_daily_data, list_available_dates
+    from cost_manager import apply_costs_to_metrics
 
     config = config or {}
     start_date = config.get("start_date", datetime.date.today())
@@ -870,6 +871,7 @@ def render_store_overview(config: dict = None):
         for d in dates:
             try:
                 metrics, _ = load_daily_data(d, store)
+                metrics = apply_costs_to_metrics(metrics, store)
                 dfs.append(metrics)
             except Exception:
                 continue
@@ -886,7 +888,9 @@ def render_store_overview(config: dict = None):
                 "有效商家实收": kpis.get("valid_merchant_income", 0),
                 "推广 ROI": kpis.get("promo_roi", 0),
                 "真实 ROI": kpis.get("real_roi", 0),
-                "退款+取消率": kpis.get("problem_rate", 0),
+                "盈亏": kpis.get("profit_loss", 0),
+                "退款率": kpis.get("refund_rate", 0),
+                "取消率": kpis.get("cancel_rate", 0),
                 "订单数": kpis.get("order_count", 0),
             })
         except Exception:
@@ -903,7 +907,7 @@ def render_store_overview(config: dict = None):
     for idx, row in enumerate(overview_rows):
         with cols[idx]:
             roi_status = "good" if row["真实 ROI"] >= 2.5 else ("warn" if row["真实 ROI"] >= 1.5 else "bad")
-            problem_status = "good" if row["退款+取消率"] < 20 else "bad"
+            profit_status = "good" if row["盈亏"] >= 0 else "bad"
             st.markdown(
                 f"""
                 <div class="store-overview-card">
@@ -916,8 +920,12 @@ def render_store_overview(config: dict = None):
                         <span class="store-overview-metric">¥{row['有效商家实收']:,.0f}</span>
                         <span class="store-overview-label"> 有效实收</span>
                     </div>
+                    <div style="margin-bottom:6px;">
+                        <span class="store-overview-metric">¥{row['盈亏']:,.0f}</span>
+                        <span class="store-overview-label"> 盈亏</span>
+                    </div>
                     <div>
-                        <span class="store-overview-label">统计 {row['统计日期']} · 花费 ¥{row['推广花费']:,.0f} · 问题率 {row['退款+取消率']:.1f}%</span>
+                        <span class="store-overview-label">统计 {row['统计日期']} · 花费 ¥{row['推广花费']:,.0f} · 退款率 {row['退款率']:.1f}% · 取消率 {row['取消率']:.1f}%</span>
                     </div>
                 </div>
                 """,
@@ -934,7 +942,9 @@ def render_store_overview(config: dict = None):
             "有效商家实收": st.column_config.NumberColumn(format="¥%.0f"),
             "推广 ROI": st.column_config.NumberColumn(format="%.2f"),
             "真实 ROI": st.column_config.NumberColumn(format="%.2f"),
-            "退款+取消率": st.column_config.NumberColumn(format="%.2f%%"),
+            "盈亏": st.column_config.NumberColumn(format="¥%.0f"),
+            "退款率": st.column_config.NumberColumn(format="%.2f%%"),
+            "取消率": st.column_config.NumberColumn(format="%.2f%%"),
         },
     )
 
