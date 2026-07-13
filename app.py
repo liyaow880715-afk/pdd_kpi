@@ -458,7 +458,8 @@ def main():
     elif active_module == "💰 成本管理":
         cost_action = render_cost_module(store_name)
         if cost_action:
-            if cost_action.get("action") == "save_costs":
+            action = cost_action.get("action")
+            if action == "save_costs":
                 cfg = load_cost_config()
                 raw = cost_action.get("costs")
                 if isinstance(raw, dict):
@@ -479,7 +480,20 @@ def main():
                     save_cost_config(cfg)
                     st.success("✅ 成本配置已保存")
                     st.rerun()
-            elif cost_action.get("action") == "refresh_cost_codes":
+            elif action == "add_cost":
+                cfg = load_cost_config()
+                cfg = set_cost(
+                    cfg,
+                    store_name=store_name,
+                    merchant_code=cost_action["merchant_code"],
+                    product_name=cost_action.get("product_name", ""),
+                    product_cost=cost_action.get("product_cost", 0),
+                    logistics_cost=cost_action.get("logistics_cost", 0),
+                )
+                save_cost_config(cfg)
+                st.success(f"✅ 已添加 {cost_action['merchant_code']}")
+                st.rerun()
+            elif action == "refresh_cost_codes":
                 with st.spinner("正在从订单中提取新商家编码..."):
                     added = append_new_merchant_codes(store_name)
                 if added:

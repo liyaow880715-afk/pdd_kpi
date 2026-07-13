@@ -1048,21 +1048,35 @@ def render_cost_module(store_name: str) -> dict:
         df = pd.DataFrame(rows)
 
     editor_key = f"cost_editor_{store_name}"
-    st.session_state["_cost_editor_key"] = editor_key
-    st.session_state["_cost_editor_store"] = store_name
 
-    st.data_editor(
-        df,
-        num_rows="dynamic",
-        use_container_width=True,
-        key=editor_key,
-        column_config={
-            "merchant_code": st.column_config.TextColumn("商家编码", required=True),
-            "product_name": st.column_config.TextColumn("商品名称"),
-            "product_cost": st.column_config.NumberColumn("商品成本/件", format="%.2f"),
-            "logistics_cost": st.column_config.NumberColumn("物流成本/件", format="%.2f"),
-        },
-    )
+    if not df.empty:
+        edited = st.data_editor(
+            df,
+            use_container_width=True,
+            key=editor_key,
+            column_config={
+                "merchant_code": st.column_config.TextColumn("商家编码"),
+                "product_name": st.column_config.TextColumn("商品名称"),
+                "product_cost": st.column_config.NumberColumn("商品成本/件", format="%.2f"),
+                "logistics_cost": st.column_config.NumberColumn("物流成本/件", format="%.2f"),
+            },
+            disabled=["merchant_code"],
+        )
+    else:
+        edited = df
+
+    st.markdown("##### 手动添加新编码")
+    with st.form("add_cost_form", clear_on_submit=True):
+        c1, c2, c3, c4 = st.columns([2, 2, 1, 1])
+        with c1:
+            new_code = st.text_input("商家编码", key="cost_new_code")
+        with c2:
+            new_name = st.text_input("商品名称", key="cost_new_name")
+        with c3:
+            new_pc = st.number_input("商品成本/件", value=0.0, step=0.01, key="cost_new_pc")
+        with c4:
+            new_lc = st.number_input("物流成本/件", value=0.0, step=0.01, key="cost_new_lc")
+        add_submitted = st.form_submit_button("➕ 添加", use_container_width=True)
 
     c1, c2 = st.columns(2)
     with c1:
@@ -1080,12 +1094,24 @@ def render_cost_module(store_name: str) -> dict:
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    editor_value = st.session_state.get(editor_key)
-    if save_clicked:
-        return {"action": "save_costs", "costs": editor_value}
-    if refresh_clicked:
-        return {"action": "refresh_cost_codes"}
+    action = None
+    payload = {}
+    if add_submitted and new_code.strip():
+        action = "add_cost"
+        payload = {
+            "merchant_code": new_code.strip(),
+            "product_name": new_name.strip(),
+            "product_cost": new_pc,
+            "logistics_cost": new_lc,
+        }
+    elif save_clicked:
+        action = "save_costs"
+        payload = {"costs": edited}
+    elif refresh_clicked:
+        action = "refresh_cost_codes"
 
+    if action:
+        return {"action": action, **payload}
     return {"action": None}
 
 
