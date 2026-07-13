@@ -1056,19 +1056,49 @@ def render_cost_module(store_name: str) -> dict:
     if not df.empty:
         with st.form("cost_edit_form"):
             st.markdown("**现有编码成本**")
+            # 表头
+            hc1, hc2, hc3, hc4 = st.columns([2, 2, 1, 1])
+            hc1.write("商家编码")
+            hc2.write("商品名称")
+            hc3.write("商品成本/件")
+            hc4.write("物流成本/件")
+
             edited_rows = []
             for _, row in df.iterrows():
                 code = str(row["merchant_code"])
                 safe_key = re.sub(r"\W+", "_", code)[:50]
                 c1, c2, c3, c4 = st.columns([2, 2, 1, 1])
                 with c1:
-                    st.text_input("商家编码", value=code, disabled=True, key=f"ce_code_{safe_key}")
+                    st.text_input(
+                        "商家编码",
+                        value=code,
+                        disabled=True,
+                        label_visibility="collapsed",
+                        key=f"ce_code_{safe_key}",
+                    )
                 with c2:
-                    name = st.text_input("商品名称", value=str(row["product_name"]), key=f"ce_name_{safe_key}")
+                    name = st.text_input(
+                        "商品名称",
+                        value=str(row["product_name"]),
+                        label_visibility="collapsed",
+                        key=f"ce_name_{safe_key}",
+                    )
                 with c3:
-                    pc = st.number_input("商品成本/件", value=float(row["product_cost"]), step=0.01, key=f"ce_pc_{safe_key}")
+                    pc = st.number_input(
+                        "商品成本/件",
+                        value=float(row["product_cost"]),
+                        step=0.01,
+                        label_visibility="collapsed",
+                        key=f"ce_pc_{safe_key}",
+                    )
                 with c4:
-                    lc = st.number_input("物流成本/件", value=float(row["logistics_cost"]), step=0.01, key=f"ce_lc_{safe_key}")
+                    lc = st.number_input(
+                        "物流成本/件",
+                        value=float(row["logistics_cost"]),
+                        step=0.01,
+                        label_visibility="collapsed",
+                        key=f"ce_lc_{safe_key}",
+                    )
                 edited_rows.append({
                     "merchant_code": code,
                     "product_name": name,
