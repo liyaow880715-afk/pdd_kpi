@@ -110,13 +110,12 @@ def list_store_costs(config: Dict, store_name: Optional[str]) -> List[Dict]:
 
 def extract_merchant_codes_from_orders(store_name: Optional[str]) -> pd.DataFrame:
     """
-    从历史订单中提取所有商家编码及其对应商品名称
-    返回 DataFrame：merchant_code, product_name
+    从历史订单中提取所有商家编码（仅用于追加新编码，不考虑商品名称）
+    返回 DataFrame：merchant_code
     """
     store = _normalize_store(store_name)
     dates = list_available_dates(store)
-    rows = []
-    seen = set()
+    codes = set()
 
     for d in dates:
         try:
@@ -127,19 +126,41 @@ def extract_merchant_codes_from_orders(store_name: Optional[str]) -> pd.DataFram
                 code = _normalize_code(r.get("merchant_code"))
                 if not code:
                     continue
-                name = str(r.get("product_name", r.get("product_name_raw", "")) or "").strip()
-                key = (code, name)
-                if key not in seen:
-                    seen.add(key)
-                    rows.append({"merchant_code": code, "product_name": name})
+                codes.add(code)
         except Exception:
             continue
 
-    if not rows:
-        return pd.DataFrame(columns=["merchant_code", "product_name"])
+    if not codes:
+        return pd.DataFrame(columns=["merchant_code"])
 
-    df = pd.DataFrame(rows).drop_duplicates(subset=["merchant_code"])
-    return df
+    return pd.DataFrame(sorted(codes), columns=["merchant_code"])
+
+
+def append_new_merchant_codes(store_name: Optional[str]) -> int:
+    """
+    把订单中出现、但成本配置里还不存在的商家编码追加进去。
+    已存在的编码不会被覆盖（成本、名称都保留）。
+    返回新增编码数量。
+    """
+    store = _normalize_store(store_name)
+    cfg = load_cost_config()
+    saved = cfg.get("merchant_costs", {}).get(store, {})
+    detected_df = extract_merchant_codes_from_orders(store)
+
+    if detected_df.empty:
+        return 0
+
+    added = 0
+    for code in detected_df["merchant_code"]:
+        code = _normalize_code(code)
+        if not code or code in saved:
+            continue
+        cfg = set_cost(cfg, store_name=store, merchant_code=code)
+        added += 1
+
+    if added:
+        save_cost_config(cfg)
+    return added
 
 
 def apply_costs_to_metrics(metrics: pd.DataFrame, store_name: Optional[str]) -> pd.DataFrame:

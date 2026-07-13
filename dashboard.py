@@ -13,6 +13,32 @@ from store_manager import list_stores
 from config_manager import get_config_defaults
 
 
+def _auto_save_cost_callback():
+    """成本表格自动保存回调"""
+    key = st.session_state.get("_cost_editor_key")
+    store = st.session_state.get("_cost_editor_store")
+    if not key or not store:
+        return
+    edited = st.session_state.get(key)
+    if edited is None:
+        return
+    from cost_manager import load_cost_config, save_cost_config, set_cost
+    cfg = load_cost_config()
+    for _, rec in edited.iterrows():
+        code = str(rec.get("merchant_code", "")).strip()
+        if not code:
+            continue
+        cfg = set_cost(
+            cfg,
+            store_name=store,
+            merchant_code=code,
+            product_name=rec.get("product_name", ""),
+            product_cost=rec.get("product_cost", 0),
+            logistics_cost=rec.get("logistics_cost", 0),
+        )
+    save_cost_config(cfg)
+
+
 # 左侧导航选项
 NAV_MODULES = [
     "📥 导入数据",
@@ -987,51 +1013,41 @@ def render_cost_module(store_name: str) -> dict:
     st.subheader("💰 成本管理")
     st.caption("按商家编码维护商品成本和物流成本，用于计算链接毛利与盈亏")
 
-    from cost_manager import (
-        load_cost_config,
-        save_cost_config,
-        extract_merchant_codes_from_orders,
-    )
+    from cost_manager import load_cost_config
 
     cfg = load_cost_config()
     saved_costs = cfg.get("merchant_costs", {}).get(store_name, {})
 
     st.markdown('<div class="config-panel">', unsafe_allow_html=True)
     st.markdown("#### 商家编码成本维护")
-
-    detected = extract_merchant_codes_from_orders(store_name)
-
-    # 合并已保存的编码和从订单提取的编码
-    all_codes = set(saved_costs.keys())
-    if not detected.empty:
-        all_codes.update(detected["merchant_code"].astype(str).tolist())
+    st.caption("编辑后自动保存；点击「从订单重新提取」只会追加新编码，不会覆盖已有成本。")
 
     rows = []
-    for code in sorted(all_codes):
+    for code in sorted(saved_costs.keys()):
         info = saved_costs.get(code, {})
-        name = info.get("product_name", "")
-        if not name and not detected.empty:
-            matched = detected[detected["merchant_code"].astype(str) == code]
-            if not matched.empty:
-                name = matched.iloc[0].get("product_name", "")
         rows.append({
             "merchant_code": code,
-            "product_name": name,
+            "product_name": info.get("product_name", ""),
             "product_cost": float(info.get("product_cost", 0) or 0),
             "logistics_cost": float(info.get("logistics_cost", 0) or 0),
         })
 
     if not rows:
-        st.info("当前店铺暂无商家编码数据。请先导入订单，或手动添加编码。")
+        st.info("当前店铺暂无商家编码数据。请先导入订单，再点击「从订单重新提取」。")
         df = pd.DataFrame(columns=["merchant_code", "product_name", "product_cost", "logistics_cost"])
     else:
         df = pd.DataFrame(rows)
 
-    edited = st.data_editor(
+    editor_key = f"cost_editor_{store_name}"
+    st.session_state["_cost_editor_key"] = editor_key
+    st.session_state["_cost_editor_store"] = store_name
+
+    st.data_editor(
         df,
         num_rows="dynamic",
         use_container_width=True,
-        key=f"cost_editor_{store_name}",
+        key=editor_key,
+        on_change=_auto_save_cost_callback,
         column_config={
             "merchant_code": st.column_config.TextColumn("商家编码", required=True),
             "product_name": st.column_config.TextColumn("商品名称"),
@@ -1040,16 +1056,14 @@ def render_cost_module(store_name: str) -> dict:
         },
     )
 
-    c1, c2 = st.columns(2)
-    with c1:
-        save_clicked = st.button("💾 保存成本配置", use_container_width=True, key="cost_save_btn")
-    with c2:
-        refresh_clicked = st.button("🔄 从订单重新提取", use_container_width=True, key="cost_refresh_btn")
+    refresh_clicked = st.button(
+        "🔄 从订单重新提取（仅追加新编码）",
+        use_container_width=True,
+        key="cost_refresh_btn",
+    )
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    if save_clicked:
-        return {"action": "save_costs", "costs": edited.to_dict("records")}
     if refresh_clicked:
         return {"action": "refresh_cost_codes"}
 

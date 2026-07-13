@@ -50,11 +50,8 @@ from wecom import send_wecom_report, save_wecom_config, listen_wecom_chatid
 from report_builder import build_daily_report
 from cost_manager import (
     apply_costs_to_metrics,
-    load_cost_config,
     save_cost_config,
-    set_cost,
-    delete_cost,
-    extract_merchant_codes_from_orders,
+    append_new_merchant_codes,
 )
 from dashboard import (
     load_css,
@@ -459,27 +456,14 @@ def main():
 
     elif active_module == "💰 成本管理":
         cost_action = render_cost_module(store_name)
-        if cost_action:
-            if cost_action.get("action") == "save_costs":
-                cfg = load_cost_config()
-                for rec in cost_action.get("costs", []):
-                    code = str(rec.get("merchant_code", "")).strip()
-                    if not code:
-                        continue
-                    cfg = set_cost(
-                        cfg,
-                        store_name=store_name,
-                        merchant_code=code,
-                        product_name=rec.get("product_name", ""),
-                        product_cost=rec.get("product_cost", 0),
-                        logistics_cost=rec.get("logistics_cost", 0),
-                    )
-                save_cost_config(cfg)
-                st.success("✅ 成本配置已保存")
-                st.rerun()
-            elif cost_action.get("action") == "refresh_cost_codes":
-                st.success("✅ 已从订单中提取最新商家编码")
-                st.rerun()
+        if cost_action and cost_action.get("action") == "refresh_cost_codes":
+            with st.spinner("正在从订单中提取新商家编码..."):
+                added = append_new_merchant_codes(store_name)
+            if added:
+                st.success(f"✅ 已新增 {added} 个商家编码")
+            else:
+                st.info("没有新的商家编码需要追加")
+            st.rerun()
 
     elif active_module == "📅 历史数据":
         history_action = render_history_module(store_name)
