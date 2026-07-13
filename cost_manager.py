@@ -4,6 +4,7 @@
 - 将成本应用到商品指标，计算链接毛利与盈亏
 """
 
+import io
 import json
 from datetime import datetime
 from pathlib import Path
@@ -306,3 +307,95 @@ def compute_cost_kpis(metrics: pd.DataFrame) -> Dict[str, float]:
         "profit_loss": metrics["profit_loss"].sum(),
         "gross_margin_rate": (profit / income * 100) if income else 0.0,
     }
+
+
+def export_costs_to_csv(store_name: Optional[str]) -> str:
+    """导出某店铺成本配置为 CSV 字符串（UTF-8-sig，含 BOM）"""
+    rows = list_store_costs(load_cost_config(), store_name)
+    df = pd.DataFrame(rows, columns=["merchant_code", "product_name", "product_cost", "logistics_cost"])
+    df.columns = ["商家编码", "商品名称", "商品成本/件", "物流成本/件"]
+    return df.to_csv(index=False, encoding="utf-8-sig")
+
+
+def _normalize_cost_column_name(name: str) -> str:
+    """识别导入 CSV 的列名"""
+    name = str(name).strip().replace(" ", "").replace("(元)", "").replace("（元）", "")
+    mapping = {
+        "商家编码": "merchant_code",
+        "商家代码": "merchant_code",
+        "商品编码": "merchant_code",
+        "链接编码": "merchant_code",
+        "merchantcode": "merchant_code",
+        "merchant_code": "merchant_code",
+        "商品名称": "product_name",
+        "商品名": "product_name",
+        "productname": "product_name",
+        "product_name": "product_name",
+        "商品成本": "product_cost",
+        "商品成本/件": "product_cost",
+        "成本": "product_cost",
+        "productcost": "product_cost",
+        "product_cost": "product_cost",
+        "物流成本": "logistics_cost",
+        "物流成本/件": "logistics_cost",
+        "logisticscost": "logistics_cost",
+        "logistics_cost": "logistics_cost",
+    }
+    return mapping.get(name, name)
+
+
+def import_costs_from_csv(store_name: Optional[str], file_obj) -> int:
+    """
+    从 CSV 导入成本配置，按商家编码更新/追加，不删除未在 CSV 中出现的编码。
+    返回更新/新增的记录数。
+    """
+    if hasattr(file_obj, "read"):
+        bytes_data = file_obj.read()
+        file_obj.seek(0)
+    else:
+        with open(file_obj, "rb") as f:
+            bytes_data = f.read()
+
+    # 尝试常见编码
+    df = None
+    for enc in ["utf-8-sig", "utf-8", "gbk", "gb18030"]:
+        try:
+            df = pd.read_csv(io.BytesIO(bytes_data), encoding=enc)
+            break
+        except Exception:
+            continue
+    if df is None:
+        raise ValueError("无法读取 CSV，请检查编码")
+
+    # 标准化列名
+    rename = {}
+    for col in df.columns:
+        norm = _normalize_cost_column_name(col)
+        if norm in ["merchant_code", "product_name", "product_cost", "logistics_cost"]:
+            rename[col] = norm
+    df = df.rename(columns=rename)
+
+    required = ["merchant_code", "product_cost", "logistics_cost"]
+    for col in required:
+        if col not in df.columns:
+            raise ValueError(f"CSV 缺少必要列：{col}")
+
+    cfg = load_cost_config()
+    count = 0
+    for _, rec in df.iterrows():
+        code = _normalize_code(rec.get("merchant_code"))
+        if not code:
+            continue
+        cfg = set_cost(
+            cfg,
+            store_name=store_name,
+            merchant_code=code,
+            product_name=str(rec.get("product_name", "") or ""),
+            product_cost=pd.to_numeric(rec.get("product_cost", 0), errors="coerce") or 0,
+            logistics_cost=pd.to_numeric(rec.get("logistics_cost", 0), errors="coerce") or 0,
+        )
+        count += 1
+
+    if count:
+        save_cost_config(cfg)
+    return count

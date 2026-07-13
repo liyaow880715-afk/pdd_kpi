@@ -54,6 +54,7 @@ from cost_manager import (
     save_cost_config,
     set_cost,
     append_new_merchant_codes,
+    import_costs_from_csv,
 )
 from dashboard import (
     load_css,
@@ -504,6 +505,14 @@ def main():
                 else:
                     st.info("没有新的商家编码需要追加")
                 st.rerun()
+            elif action == "import_costs":
+                with st.spinner("正在导入成本配置..."):
+                    try:
+                        count = import_costs_from_csv(store_name, cost_action["file"])
+                        st.success(f"✅ 已导入/更新 {count} 条成本记录")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"导入失败: {e}")
 
     elif active_module == "📅 历史数据":
         history_action = render_history_module(store_name)

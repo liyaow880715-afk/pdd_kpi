@@ -1022,7 +1022,11 @@ def render_cost_module(store_name: str) -> dict:
     st.subheader("💰 成本管理")
     st.caption("按商家编码维护商品成本和物流成本，用于计算链接毛利与盈亏")
 
-    from cost_manager import load_cost_config
+    from cost_manager import (
+        load_cost_config,
+        export_costs_to_csv,
+        import_costs_from_csv,
+    )
 
     cfg = load_cost_config()
     saved_costs = cfg.get("merchant_costs", {}).get(store_name, {})
@@ -1095,6 +1099,32 @@ def render_cost_module(store_name: str) -> dict:
         key="cost_refresh_btn",
     )
 
+    st.markdown("---")
+    st.markdown("##### 批量导入 / 导出")
+    c1, c2 = st.columns(2)
+    with c1:
+        csv_text = export_costs_to_csv(store_name)
+        st.download_button(
+            label="📥 导出成本 CSV",
+            data=csv_text,
+            file_name=f"costs_{store_name}.csv",
+            mime="text/csv",
+            use_container_width=True,
+            key="cost_export_btn",
+        )
+    with c2:
+        import_file = st.file_uploader(
+            "导入成本 CSV",
+            type=["csv"],
+            key="cost_import_file",
+        )
+        import_clicked = st.button(
+            "📤 导入并更新",
+            use_container_width=True,
+            key="cost_import_btn",
+            disabled=(import_file is None),
+        )
+
     st.markdown("</div>", unsafe_allow_html=True)
 
     action = None
@@ -1110,6 +1140,9 @@ def render_cost_module(store_name: str) -> dict:
     elif save_all:
         action = "save_costs"
         payload = {"costs": edited_rows}
+    elif import_clicked and import_file is not None:
+        action = "import_costs"
+        payload = {"file": import_file}
     elif refresh_clicked:
         action = "refresh_cost_codes"
 
