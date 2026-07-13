@@ -1029,7 +1029,7 @@ def render_cost_module(store_name: str) -> dict:
 
     st.markdown('<div class="config-panel">', unsafe_allow_html=True)
     st.markdown("#### 商家编码成本维护")
-    st.caption("编辑后自动保存；点击「从订单重新提取」只会追加新编码，不会覆盖已有成本。")
+    st.caption("修改成本后点击「保存全部」；点击「从订单重新提取」只会追加新编码，不会覆盖已有成本。")
 
     rows = []
     for code in sorted(saved_costs.keys()):
@@ -1047,23 +1047,34 @@ def render_cost_module(store_name: str) -> dict:
     else:
         df = pd.DataFrame(rows)
 
-    editor_key = f"cost_editor_{store_name}"
+    import re
 
     if not df.empty:
-        edited = st.data_editor(
-            df,
-            use_container_width=True,
-            key=editor_key,
-            column_config={
-                "merchant_code": st.column_config.TextColumn("商家编码"),
-                "product_name": st.column_config.TextColumn("商品名称"),
-                "product_cost": st.column_config.NumberColumn("商品成本/件", format="%.2f"),
-                "logistics_cost": st.column_config.NumberColumn("物流成本/件", format="%.2f"),
-            },
-            disabled=["merchant_code"],
-        )
+        with st.form("cost_edit_form"):
+            st.markdown("**现有编码成本**")
+            edited_rows = []
+            for _, row in df.iterrows():
+                code = str(row["merchant_code"])
+                safe_key = re.sub(r"\W+", "_", code)[:50]
+                c1, c2, c3, c4 = st.columns([2, 2, 1, 1])
+                with c1:
+                    st.text_input("商家编码", value=code, disabled=True, key=f"ce_code_{safe_key}")
+                with c2:
+                    name = st.text_input("商品名称", value=str(row["product_name"]), key=f"ce_name_{safe_key}")
+                with c3:
+                    pc = st.number_input("商品成本/件", value=float(row["product_cost"]), step=0.01, key=f"ce_pc_{safe_key}")
+                with c4:
+                    lc = st.number_input("物流成本/件", value=float(row["logistics_cost"]), step=0.01, key=f"ce_lc_{safe_key}")
+                edited_rows.append({
+                    "merchant_code": code,
+                    "product_name": name,
+                    "product_cost": pc,
+                    "logistics_cost": lc,
+                })
+            save_all = st.form_submit_button("💾 保存全部", use_container_width=True)
     else:
-        edited = df
+        edited_rows = []
+        save_all = False
 
     st.markdown("##### 手动添加新编码")
     with st.form("add_cost_form", clear_on_submit=True):
@@ -1078,19 +1089,11 @@ def render_cost_module(store_name: str) -> dict:
             new_lc = st.number_input("物流成本/件", value=0.0, step=0.01, key="cost_new_lc")
         add_submitted = st.form_submit_button("➕ 添加", use_container_width=True)
 
-    c1, c2 = st.columns(2)
-    with c1:
-        save_clicked = st.button(
-            "💾 保存成本配置",
-            use_container_width=True,
-            key="cost_save_btn",
-        )
-    with c2:
-        refresh_clicked = st.button(
-            "🔄 从订单重新提取（仅追加新编码）",
-            use_container_width=True,
-            key="cost_refresh_btn",
-        )
+    refresh_clicked = st.button(
+        "🔄 从订单重新提取（仅追加新编码）",
+        use_container_width=True,
+        key="cost_refresh_btn",
+    )
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1104,9 +1107,9 @@ def render_cost_module(store_name: str) -> dict:
             "product_cost": new_pc,
             "logistics_cost": new_lc,
         }
-    elif save_clicked:
+    elif save_all:
         action = "save_costs"
-        payload = {"costs": edited}
+        payload = {"costs": edited_rows}
     elif refresh_clicked:
         action = "refresh_cost_codes"
 

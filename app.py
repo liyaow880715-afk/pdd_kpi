@@ -461,11 +461,13 @@ def main():
             action = cost_action.get("action")
             if action == "save_costs":
                 cfg = load_cost_config()
-                raw = cost_action.get("costs")
+                raw = cost_action.get("costs", [])
                 if isinstance(raw, dict):
                     raw = pd.DataFrame({k: pd.Series(v) for k, v in raw.items()})
                 if isinstance(raw, pd.DataFrame):
-                    for _, rec in raw.iterrows():
+                    raw = raw.to_dict("records")
+                if isinstance(raw, list):
+                    for rec in raw:
                         code = str(rec.get("merchant_code", "")).strip()
                         if not code:
                             continue
