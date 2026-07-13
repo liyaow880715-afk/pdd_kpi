@@ -20,6 +20,7 @@ NAV_MODULES = [
     "📊 核心指标",
     "🛒 商品分析",
     "🎨 样式分析",
+    "💰 成本管理",
     "🤖 AI 洞察",
     "📅 历史数据",
     "⚙️ 店铺管理",
@@ -494,13 +495,28 @@ def render_kpis(kpis: Dict):
     with c12:
         kpi_card("退款+取消率", f"{kpis['problem_rate']:.2f}%", f"{kpis['refund_count'] + kpis['cancel_count']:.0f} 笔", problem_status)
 
+    # 成本 / 毛利 / 盈亏
+    if "link_gross_profit" in kpis:
+        c13, c14, c15, c16 = st.columns(4)
+        profit_status = "good" if kpis.get("profit_loss", 0) >= 0 else "bad"
+        with c13:
+            kpi_card("总成本", f"¥{kpis.get('total_cost', 0):,.2f}", "商品+物流", "bad")
+        with c14:
+            kpi_card("链接毛利", f"¥{kpis.get('link_gross_profit', 0):,.2f}", "实收-成本", "info")
+        with c15:
+            kpi_card("盈亏", f"¥{kpis.get('profit_loss', 0):,.2f}", "毛利-推广花费", profit_status)
+        with c16:
+            kpi_card("毛利率", f"{kpis.get('gross_margin_rate', 0):.2f}%", "毛利/实收", "info")
+
 
 def render_product_table(metrics: pd.DataFrame):
     """渲染商品明细表"""
     display_cols = [
-        "product_name", "promo_spend", "promo_gmv", "promo_roi",
-        "valid_order_count", "valid_order_gmv", "valid_merchant_income",
+        "product_name", "merchant_code", "promo_spend", "promo_gmv", "promo_roi",
+        "valid_order_count", "valid_quantity", "valid_order_gmv", "valid_merchant_income",
         "real_roi_merchant_income", "valid_order_gmv_roi",
+        "product_cost_unit", "logistics_cost_unit", "total_cost",
+        "link_gross_profit", "profit_loss", "gross_margin_rate",
         "refund_rate", "cancel_rate", "problem_rate",
         "organic_ratio_gmv", "ctr", "click_to_order_rate"
     ]
@@ -509,14 +525,22 @@ def render_product_table(metrics: pd.DataFrame):
 
     rename = {
         "product_name": "商品名称",
+        "merchant_code": "商家编码",
         "promo_spend": "推广花费",
         "promo_gmv": "推广 GMV",
         "promo_roi": "推广 ROI",
         "valid_order_count": "有效订单数",
+        "valid_quantity": "有效件数",
         "valid_order_gmv": "有效订单 GMV",
         "valid_merchant_income": "有效商家实收",
         "real_roi_merchant_income": "真实 ROI",
         "valid_order_gmv_roi": "有效 GMV ROI",
+        "product_cost_unit": "商品成本/件",
+        "logistics_cost_unit": "物流成本/件",
+        "total_cost": "总成本",
+        "link_gross_profit": "链接毛利",
+        "profit_loss": "盈亏",
+        "gross_margin_rate": "毛利率(%)",
         "refund_rate": "退款率(%)",
         "cancel_rate": "取消率(%)",
         "problem_rate": "问题率(%)",
@@ -954,6 +978,80 @@ def render_store_management():
             if delete_btn:
                 return {"action": "delete", "store_id": store["id"], "store_name": store["name"]}
         st.divider()
+
+    return {"action": None}
+
+
+def render_cost_module(store_name: str) -> dict:
+    """渲染成本管理模块，返回操作指令"""
+    st.subheader("💰 成本管理")
+    st.caption("按商家编码维护商品成本和物流成本，用于计算链接毛利与盈亏")
+
+    from cost_manager import (
+        load_cost_config,
+        save_cost_config,
+        extract_merchant_codes_from_orders,
+    )
+
+    cfg = load_cost_config()
+    saved_costs = cfg.get("merchant_costs", {}).get(store_name, {})
+
+    st.markdown('<div class="config-panel">', unsafe_allow_html=True)
+    st.markdown("#### 商家编码成本维护")
+
+    detected = extract_merchant_codes_from_orders(store_name)
+
+    # 合并已保存的编码和从订单提取的编码
+    all_codes = set(saved_costs.keys())
+    if not detected.empty:
+        all_codes.update(detected["merchant_code"].astype(str).tolist())
+
+    rows = []
+    for code in sorted(all_codes):
+        info = saved_costs.get(code, {})
+        name = info.get("product_name", "")
+        if not name and not detected.empty:
+            matched = detected[detected["merchant_code"].astype(str) == code]
+            if not matched.empty:
+                name = matched.iloc[0].get("product_name", "")
+        rows.append({
+            "merchant_code": code,
+            "product_name": name,
+            "product_cost": float(info.get("product_cost", 0) or 0),
+            "logistics_cost": float(info.get("logistics_cost", 0) or 0),
+        })
+
+    if not rows:
+        st.info("当前店铺暂无商家编码数据。请先导入订单，或手动添加编码。")
+        df = pd.DataFrame(columns=["merchant_code", "product_name", "product_cost", "logistics_cost"])
+    else:
+        df = pd.DataFrame(rows)
+
+    edited = st.data_editor(
+        df,
+        num_rows="dynamic",
+        use_container_width=True,
+        key=f"cost_editor_{store_name}",
+        column_config={
+            "merchant_code": st.column_config.TextColumn("商家编码", required=True),
+            "product_name": st.column_config.TextColumn("商品名称"),
+            "product_cost": st.column_config.NumberColumn("商品成本/件", format="%.2f"),
+            "logistics_cost": st.column_config.NumberColumn("物流成本/件", format="%.2f"),
+        },
+    )
+
+    c1, c2 = st.columns(2)
+    with c1:
+        save_clicked = st.button("💾 保存成本配置", use_container_width=True, key="cost_save_btn")
+    with c2:
+        refresh_clicked = st.button("🔄 从订单重新提取", use_container_width=True, key="cost_refresh_btn")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    if save_clicked:
+        return {"action": "save_costs", "costs": edited.to_dict("records")}
+    if refresh_clicked:
+        return {"action": "refresh_cost_codes"}
 
     return {"action": None}
 

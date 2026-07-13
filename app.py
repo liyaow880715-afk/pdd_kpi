@@ -48,6 +48,14 @@ from storage import (
 from store_manager import add_store, rename_store, delete_store
 from wecom import send_wecom_report, save_wecom_config, listen_wecom_chatid
 from report_builder import build_daily_report
+from cost_manager import (
+    apply_costs_to_metrics,
+    load_cost_config,
+    save_cost_config,
+    set_cost,
+    delete_cost,
+    extract_merchant_codes_from_orders,
+)
 from dashboard import (
     load_css,
     render_sidebar_nav,
@@ -60,6 +68,7 @@ from dashboard import (
     render_history_module,
     render_store_management,
     render_wecom_module,
+    render_cost_module,
     render_kpis,
     render_product_table,
     render_charts,
@@ -114,6 +123,7 @@ def load_analysis_data(store_name: str, start_date, end_date):
         return None, None, None
 
     metrics = aggregate_product_metrics(product_dfs)
+    metrics = apply_costs_to_metrics(metrics, store_name)
     style_metrics = aggregate_style_metrics(order_dfs) if order_dfs else pd.DataFrame()
     kpis = compute_overall_kpis(metrics)
     return metrics, style_metrics, kpis
@@ -446,6 +456,30 @@ def main():
                 except Exception as e:
                     st.error(f"发送失败: {e}")
                     st.exception(e)
+
+    elif active_module == "💰 成本管理":
+        cost_action = render_cost_module(store_name)
+        if cost_action:
+            if cost_action.get("action") == "save_costs":
+                cfg = load_cost_config()
+                for rec in cost_action.get("costs", []):
+                    code = str(rec.get("merchant_code", "")).strip()
+                    if not code:
+                        continue
+                    cfg = set_cost(
+                        cfg,
+                        store_name=store_name,
+                        merchant_code=code,
+                        product_name=rec.get("product_name", ""),
+                        product_cost=rec.get("product_cost", 0),
+                        logistics_cost=rec.get("logistics_cost", 0),
+                    )
+                save_cost_config(cfg)
+                st.success("✅ 成本配置已保存")
+                st.rerun()
+            elif cost_action.get("action") == "refresh_cost_codes":
+                st.success("✅ 已从订单中提取最新商家编码")
+                st.rerun()
 
     elif active_module == "📅 历史数据":
         history_action = render_history_module(store_name)

@@ -107,6 +107,16 @@ def compute_product_metrics(merged: pd.DataFrame) -> pd.DataFrame:
 
 def compute_overall_kpis(metrics: pd.DataFrame) -> Dict[str, float]:
     """计算整体 KPI"""
+    # 成本相关字段（如果已应用）
+    cost_totals = {}
+    if metrics is not None and not metrics.empty:
+        for col in ["total_cost", "link_gross_profit", "profit_loss"]:
+            if col in metrics.columns:
+                cost_totals[col] = pd.to_numeric(metrics[col], errors="coerce").fillna(0).sum()
+        if "valid_merchant_income" in metrics.columns and cost_totals.get("link_gross_profit") is not None:
+            income = pd.to_numeric(metrics["valid_merchant_income"], errors="coerce").fillna(0).sum()
+            cost_totals["gross_margin_rate"] = (cost_totals["link_gross_profit"] / income * 100) if income else 0.0
+
     totals = {
         "promo_spend": metrics["promo_spend"].sum(),
         "promo_gmv": metrics["promo_gmv"].sum(),
@@ -152,6 +162,7 @@ def compute_overall_kpis(metrics: pd.DataFrame) -> Dict[str, float]:
         "organic_gmv": totals["organic_gmv"],
         "refund_count": totals["refund_count"],
         "cancel_count": totals["cancel_count"],
+        **cost_totals,
     }
     return kpis
 

@@ -13,6 +13,7 @@ COLUMN_ALIASES = {
     # 商品/样式标识
     "product_name": ["商品名称", "商品", "商品名", "宝贝名称"],
     "product_id": ["商品ID", "商品id", "商品Id", "宝贝ID", "宝贝id"],
+    "merchant_code": ["商家编码", "商家代码", "商品编码", "链接编码"],
     "style_id": ["样式ID", "样式id", "样式Id", "SKUID", "sku_id", "SKU ID", "规格ID"],
     "style_name": ["商品规格", "规格", "SKU名称", "样式名称"],
     "group": ["分组", "计划组", "单元"],

@@ -83,6 +83,8 @@ def preprocess_orders(df: pd.DataFrame, mapping: Dict[str, Optional[str]]) -> pd
         df["product_id"] = df["product_id"].apply(_clean_product_id)
     if "style_id" in df.columns:
         df["style_id"] = df["style_id"].apply(_clean_style_id)
+    if "merchant_code" in df.columns:
+        df["merchant_code"] = df["merchant_code"].astype(str).str.strip().replace(["nan", "None", "-", ""], None)
 
     # 金额/数量转数值
     for col in ["item_total", "user_paid", "merchant_income", "quantity"]:
@@ -145,6 +147,14 @@ def aggregate_orders_by_product(
     orders: pd.DataFrame,
 ) -> pd.DataFrame:
     """按商品ID聚合订单"""
+    # 商家编码：每个商品取第一个非空值
+    merchant_codes = (
+        orders.dropna(subset=["merchant_code"])
+        .groupby("product_id")["merchant_code"]
+        .first()
+        .reset_index()
+    )
+
     agg = orders.groupby("product_id", as_index=False).agg(
         order_count=("order_id", "count"),
         valid_order_count=("is_valid", "sum"),
@@ -159,10 +169,11 @@ def aggregate_orders_by_product(
         refund_count=("is_refund", "sum"),
         cancel_count=("is_cancel", "sum"),
     )
-    # 取第一个商品名称
+    # 取第一个商品名称和商家编码
     names = orders.groupby("product_id")["product_name_raw"].first().reset_index()
     names.columns = ["product_id", "product_name_raw"]
     agg = agg.merge(names, on="product_id", how="left")
+    agg = agg.merge(merchant_codes, on="product_id", how="left")
     return agg
 
 
@@ -176,6 +187,14 @@ def aggregate_orders_by_style(
     else:
         # 无样式ID时退回到按商品聚合
         return aggregate_orders_by_product(orders)
+
+    # 商家编码：每个组合取第一个非空值
+    merchant_codes = (
+        orders.dropna(subset=["merchant_code"])
+        .groupby(group_cols)["merchant_code"]
+        .first()
+        .reset_index()
+    )
 
     agg = orders.groupby(group_cols, as_index=False).agg(
         order_count=("order_id", "count"),
@@ -192,7 +211,7 @@ def aggregate_orders_by_style(
         cancel_count=("is_cancel", "sum"),
     )
 
-    # 取名称
+    # 取名称和商家编码
     name_cols = ["product_id"]
     if "style_id" in group_cols:
         name_cols.append("style_id")
@@ -201,6 +220,7 @@ def aggregate_orders_by_style(
         style_name_raw=("style_name_raw", "first"),
     )
     agg = agg.merge(names, on=name_cols, how="left")
+    agg = agg.merge(merchant_codes, on=name_cols, how="left")
     return agg
 
 
