@@ -1056,7 +1056,6 @@ def render_cost_module(store_name: str) -> dict:
         num_rows="dynamic",
         use_container_width=True,
         key=editor_key,
-        on_change=_auto_save_cost_callback,
         column_config={
             "merchant_code": st.column_config.TextColumn("商家编码", required=True),
             "product_name": st.column_config.TextColumn("商品名称"),
