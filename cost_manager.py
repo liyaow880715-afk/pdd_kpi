@@ -108,9 +108,21 @@ def list_store_costs(config: Dict, store_name: Optional[str]) -> List[Dict]:
     return rows
 
 
+def _find_merchant_code_column(orders: pd.DataFrame) -> Optional[str]:
+    """兼容新旧数据，找到商家编码所在列"""
+    if "merchant_code" in orders.columns:
+        return "merchant_code"
+    for col in orders.columns:
+        col_str = str(col).strip()
+        if col_str in ("商家编码", "商家代码", "商品编码", "链接编码"):
+            return col_str
+    return None
+
+
 def extract_merchant_codes_from_orders(store_name: Optional[str]) -> pd.DataFrame:
     """
     从历史订单中提取所有商家编码（仅用于追加新编码，不考虑商品名称）
+    兼容旧数据：原始列名如「商家编码」也能识别。
     返回 DataFrame：merchant_code
     """
     store = _normalize_store(store_name)
@@ -120,10 +132,13 @@ def extract_merchant_codes_from_orders(store_name: Optional[str]) -> pd.DataFram
     for d in dates:
         try:
             orders = load_daily_orders(d, store)
-            if orders.empty or "merchant_code" not in orders.columns:
+            if orders.empty:
+                continue
+            code_col = _find_merchant_code_column(orders)
+            if not code_col:
                 continue
             for _, r in orders.iterrows():
-                code = _normalize_code(r.get("merchant_code"))
+                code = _normalize_code(r.get(code_col))
                 if not code:
                     continue
                 codes.add(code)
@@ -163,9 +178,31 @@ def append_new_merchant_codes(store_name: Optional[str]) -> int:
     return added
 
 
+def _build_product_id_to_merchant_code(store_name: Optional[str]) -> Dict[str, str]:
+    """从历史订单中建立 product_id -> merchant_code 映射（用于旧数据回退）"""
+    store = _normalize_store(store_name)
+    mapping = {}
+    dates = list_available_dates(store)
+    for d in dates:
+        try:
+            orders = load_daily_orders(d, store)
+            code_col = _find_merchant_code_column(orders)
+            if not code_col or "product_id" not in orders.columns:
+                continue
+            for _, r in orders.iterrows():
+                pid = r.get("product_id")
+                code = _normalize_code(r.get(code_col))
+                if pd.notna(pid) and code and str(pid) not in mapping:
+                    mapping[str(pid)] = code
+        except Exception:
+            continue
+    return mapping
+
+
 def apply_costs_to_metrics(metrics: pd.DataFrame, store_name: Optional[str]) -> pd.DataFrame:
     """
-    将成本配置合并到商品指标表，并计算链接毛利与盈亏
+    将成本配置合并到商品指标表，并计算链接毛利与盈亏。
+    如果指标表里没有 merchant_code，会尝试用 product_id 从历史订单反查。
     """
     if metrics is None or metrics.empty:
         return metrics
@@ -194,6 +231,18 @@ def apply_costs_to_metrics(metrics: pd.DataFrame, store_name: Optional[str]) -> 
         df["merchant_code"] = df["merchant_code"].astype(str).str.strip()
     else:
         df["merchant_code"] = ""
+
+    # 旧数据回退：用 product_id 反查商家编码
+    merchant_codes_blank = df["merchant_code"].replace("", pd.NA).isna()
+    if merchant_codes_blank.any() and "product_id" in df.columns:
+        mapping = _build_product_id_to_merchant_code(store_name)
+        if mapping:
+            df.loc[merchant_codes_blank, "merchant_code"] = (
+                df.loc[merchant_codes_blank, "product_id"]
+                .astype(str)
+                .map(mapping)
+            )
+    df["merchant_code"] = df["merchant_code"].fillna("").astype(str).str.strip()
 
     df = df.merge(
         cost_df[["merchant_code", "product_cost", "logistics_cost"]],

@@ -15,12 +15,17 @@ from config_manager import get_config_defaults
 
 def _auto_save_cost_callback():
     """成本表格自动保存回调"""
+    import pandas as pd
     key = st.session_state.get("_cost_editor_key")
     store = st.session_state.get("_cost_editor_store")
     if not key or not store:
         return
     edited = st.session_state.get(key)
     if edited is None:
+        return
+    if isinstance(edited, dict):
+        edited = pd.DataFrame(edited)
+    if edited.empty:
         return
     from cost_manager import load_cost_config, save_cost_config, set_cost
     cfg = load_cost_config()

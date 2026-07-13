@@ -197,9 +197,13 @@ def aggregate_product_metrics(daily_metrics_list: List[pd.DataFrame]) -> pd.Data
 
     agg = combined.groupby(group_cols, as_index=False)[sum_cols].sum()
 
-    # 保留 product_name 作为唯一分组键传给 compute_product_metrics
+    # 保留 product_id 用于后续匹配商家编码等
     if "product_id" in agg.columns:
-        agg = agg.drop(columns=["product_id"])
+        first_ids = combined.groupby(group_cols, as_index=False)["product_id"].first()
+        agg = agg.merge(first_ids, on=group_cols, how="left", suffixes=("", "_first"))
+        if "product_id_first" in agg.columns:
+            agg["product_id"] = agg["product_id"].fillna(agg["product_id_first"])
+            agg = agg.drop(columns=["product_id_first"])
 
     return compute_product_metrics(agg)
 
