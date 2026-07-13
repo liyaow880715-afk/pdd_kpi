@@ -353,7 +353,7 @@ def main():
         render_recent_imports(store_name)
 
     elif active_module == "🏠 店铺总览":
-        render_store_overview()
+        render_store_overview(config)
 
     elif active_module in ["📊 核心指标", "🛒 商品分析", "🎨 样式分析", "🤖 AI 洞察", "📤 导出数据"]:
         # 读取分析数据

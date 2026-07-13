@@ -8,7 +8,7 @@ import streamlit as st
 import plotly.graph_objects as go
 from typing import Dict, List, Optional
 
-from storage import list_available_stores, list_available_dates, list_store_records
+from storage import list_available_stores, list_available_dates, list_store_records, _date_to_str
 from store_manager import list_stores
 from config_manager import get_config_defaults
 
@@ -842,13 +842,19 @@ def render_recent_imports(store_name: str, limit: int = 10):
         st.divider()
 
 
-def render_store_overview():
-    """渲染店铺总览（多店对比）"""
+def render_store_overview(config: dict = None):
+    """渲染店铺总览（多店对比），按顶部所选日期范围汇总"""
     st.subheader("🏠 店铺总览")
-    st.caption("对比所有店铺的最新数据表现")
+    st.caption("对比所选日期范围内各店铺的汇总表现")
 
-    from metrics import compute_overall_kpis
+    from metrics import compute_overall_kpis, aggregate_product_metrics
     from storage import load_daily_data, list_available_dates
+
+    config = config or {}
+    start_date = config.get("start_date", datetime.date.today())
+    end_date = config.get("end_date", datetime.date.today())
+    start_s = _date_to_str(start_date)
+    end_s = _date_to_str(end_date)
 
     stores = list_available_stores()
     if not stores:
@@ -857,16 +863,24 @@ def render_store_overview():
 
     overview_rows = []
     for store in stores:
-        dates = list_available_dates(store)
+        dates = [d for d in list_available_dates(store) if start_s <= d <= end_s]
         if not dates:
             continue
-        latest_date = dates[-1]
+        dfs = []
+        for d in dates:
+            try:
+                metrics, _ = load_daily_data(d, store)
+                dfs.append(metrics)
+            except Exception:
+                continue
+        if not dfs:
+            continue
         try:
-            metrics, _ = load_daily_data(latest_date, store)
+            metrics = aggregate_product_metrics(dfs)
             kpis = compute_overall_kpis(metrics)
             overview_rows.append({
                 "店铺": store,
-                "最新日期": latest_date,
+                "统计日期": f"{start_s} ~ {end_s}",
                 "推广花费": kpis.get("promo_spend", 0),
                 "推广 GMV": kpis.get("promo_gmv", 0),
                 "有效商家实收": kpis.get("valid_merchant_income", 0),
@@ -903,7 +917,7 @@ def render_store_overview():
                         <span class="store-overview-label"> 有效实收</span>
                     </div>
                     <div>
-                        <span class="store-overview-label">最新 {row['最新日期']} · 花费 ¥{row['推广花费']:,.0f} · 问题率 {row['退款+取消率']:.1f}%</span>
+                        <span class="store-overview-label">统计 {row['统计日期']} · 花费 ¥{row['推广花费']:,.0f} · 问题率 {row['退款+取消率']:.1f}%</span>
                     </div>
                 </div>
                 """,
@@ -926,7 +940,7 @@ def render_store_overview():
 
     # 多店趋势
     st.markdown("#### 多店历史趋势")
-    history = load_all_product_history(stores)
+    history = load_all_product_history(stores, start_date, end_date)
     render_trend(history, stores)
 
 
@@ -1290,10 +1304,20 @@ def render_wecom_module() -> dict:
     return {"action": None}
 
 
-def load_all_product_history(store_names: Optional[List[str]] = None) -> pd.DataFrame:
-    """加载所有历史商品级数据用于趋势分析"""
+def load_all_product_history(
+    store_names: Optional[List[str]] = None,
+    start_date=None,
+    end_date=None,
+) -> pd.DataFrame:
+    """加载指定店铺、日期范围内的历史商品级数据用于趋势分析"""
     from storage import load_daily_data, list_available_dates, list_available_stores
-    dates = list_available_dates()
+    all_dates = list_available_dates()
+    if start_date and end_date:
+        start_s = _date_to_str(start_date)
+        end_s = _date_to_str(end_date)
+        dates = [d for d in all_dates if start_s <= d <= end_s]
+    else:
+        dates = all_dates
     stores = store_names or list_available_stores()
     dfs = []
     for store in stores:
