@@ -50,6 +50,7 @@ from wecom import send_wecom_report, save_wecom_config, listen_wecom_chatid
 from report_builder import build_daily_report
 from cost_manager import (
     apply_costs_to_metrics,
+    load_cost_config,
     save_cost_config,
     set_cost,
     append_new_merchant_codes,
