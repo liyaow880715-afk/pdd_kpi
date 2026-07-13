@@ -24,8 +24,12 @@ def _auto_save_cost_callback():
     if edited is None:
         return
     if isinstance(edited, dict):
-        edited = pd.DataFrame(edited)
-    if edited.empty:
+        try:
+            # 兼容 data_editor 在不同状态下返回的 dict（列长度可能不一致）
+            edited = pd.DataFrame({k: pd.Series(v) for k, v in edited.items()})
+        except Exception:
+            return
+    if not isinstance(edited, pd.DataFrame) or edited.empty:
         return
     from cost_manager import load_cost_config, save_cost_config, set_cost
     cfg = load_cost_config()
@@ -1061,14 +1065,25 @@ def render_cost_module(store_name: str) -> dict:
         },
     )
 
-    refresh_clicked = st.button(
-        "🔄 从订单重新提取（仅追加新编码）",
-        use_container_width=True,
-        key="cost_refresh_btn",
-    )
+    c1, c2 = st.columns(2)
+    with c1:
+        save_clicked = st.button(
+            "💾 保存成本配置",
+            use_container_width=True,
+            key="cost_save_btn",
+        )
+    with c2:
+        refresh_clicked = st.button(
+            "🔄 从订单重新提取（仅追加新编码）",
+            use_container_width=True,
+            key="cost_refresh_btn",
+        )
 
     st.markdown("</div>", unsafe_allow_html=True)
 
+    editor_value = st.session_state.get(editor_key)
+    if save_clicked:
+        return {"action": "save_costs", "costs": editor_value}
     if refresh_clicked:
         return {"action": "refresh_cost_codes"}
 
