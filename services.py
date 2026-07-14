@@ -233,6 +233,8 @@ def load_trend_data(
             try:
                 p, _ = load_daily_data(d, store)
                 p = compute_product_metrics(p)
+                orders = load_daily_orders(d, store)
+                p = merge_refund_stage_counts(p, [orders])
                 p = apply_costs_to_metrics(p, store)
                 day_kpis = compute_overall_kpis(p)
                 row = {"store_name": store, "date": d}
