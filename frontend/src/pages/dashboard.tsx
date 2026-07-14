@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { MetricLineChart } from "@/components/metric-line-chart"
 import { getStores, getDashboardSummary, type Kpis } from "@/api/client"
 
@@ -134,6 +135,7 @@ export function DashboardPage() {
   const [trend, setTrend] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState("")
+  const [activeTab, setActiveTab] = useState("overview")
 
   useEffect(() => {
     getStores().then((s) => setStoreCount(s.length))
@@ -211,43 +213,52 @@ export function DashboardPage() {
       </div>
 
       {kpis && Object.keys(kpis).length > 0 && (
-        <>
-          {kpiGroups.map((group) => {
-            const items = group.items.filter((item) => kpis[item.key] !== undefined && kpis[item.key] !== null)
-            if (items.length === 0) return null
-            return (
-              <Card key={group.title}>
-                <CardHeader>
-                  <CardTitle>{group.title}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                    {items.map((item) => (
-                      <KpiCard key={item.key} label={item.label} value={kpis[item.key]} unit={item.unit} />
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="flex-wrap h-auto">
+            <TabsTrigger value="overview">总览 KPI</TabsTrigger>
+            <TabsTrigger value="trend">趋势</TabsTrigger>
+          </TabsList>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>趋势</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              {trendCharts.map((chart) => (
-                <MetricLineChart
-                  key={chart.title}
-                  title={chart.title}
-                  description={chart.description}
-                  data={trend}
-                  metrics={chart.metrics}
-                />
-              ))}
-            </CardContent>
-          </Card>
-        </>
+          <TabsContent value="overview" className="space-y-4">
+            {kpiGroups.map((group) => {
+              const items = group.items.filter((item) => kpis[item.key] !== undefined && kpis[item.key] !== null)
+              if (items.length === 0) return null
+              return (
+                <Card key={group.title}>
+                  <CardHeader>
+                    <CardTitle>{group.title}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                      {items.map((item) => (
+                        <KpiCard key={item.key} label={item.label} value={kpis[item.key]} unit={item.unit} />
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </TabsContent>
+
+          <TabsContent value="trend" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>趋势</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                {trendCharts.map((chart) => (
+                  <MetricLineChart
+                    key={chart.title}
+                    title={chart.title}
+                    description={chart.description}
+                    data={trend}
+                    metrics={chart.metrics}
+                  />
+                ))}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       )}
     </div>
   )
