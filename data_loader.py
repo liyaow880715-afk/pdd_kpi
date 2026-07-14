@@ -99,11 +99,16 @@ def _find_column(df_columns: pd.Index, aliases: List[str]) -> Optional[str]:
 
 def normalize_columns(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Optional[str]]]:
     """
-    标准化列名，返回新的 DataFrame 和映射字典
+    标准化列名，返回新的 DataFrame 和映射字典。
+    如果目标标准列名已经存在，则不再重命名其他列，避免产生重复列。
     """
     mapping: Dict[str, Optional[str]] = {}
     rename_map = {}
     for key, aliases in COLUMN_ALIASES.items():
+        if key in df.columns:
+            # 已经有标准列名，直接复用
+            mapping[key] = key
+            continue
         matched = _find_column(df.columns, aliases)
         mapping[key] = matched
         if matched:
@@ -152,12 +157,14 @@ def read_order_file(file_obj) -> Tuple[pd.DataFrame, Dict[str, Optional[str]]]:
 
     encoding = _detect_encoding(bytes_data)
 
-    # 尝试多种编码
+    # 尝试多种编码；若读取后出现重复列名，说明编码可能不对，继续尝试
     errors = []
-    for enc in [encoding, "utf-8", "gbk", "gb18030"]:
+    for enc in [encoding, "utf-8-sig", "utf-8", "gbk", "gb18030"]:
         try:
             df = pd.read_csv(io.BytesIO(bytes_data), encoding=enc, low_memory=False)
-            break
+            if not df.columns.duplicated().any():
+                break
+            errors.append(f"{enc}: 出现重复列名")
         except Exception as e:
             errors.append(f"{enc}: {e}")
     else:
