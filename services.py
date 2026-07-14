@@ -210,6 +210,15 @@ def import_daily_data(
         # 按订单实际日期拆分，逐日处理
         order_dates = extract_order_dates(order_df)
         order_df["_order_date"] = order_dates
+
+        # 已取消且完全无法解析到日期的订单，不计入订单
+        if "order_status" in order_df.columns:
+            no_date = order_df["_order_date"].isna()
+            is_cancel = order_df["order_status"].astype(str).str.contains(
+                "取消|交易关闭", na=False, regex=True
+            )
+            order_df = order_df[~(no_date & is_cancel)].copy()
+
         # 无法解析日期的行归到用户选择的 import_date，避免丢单
         order_df["_order_date"] = order_df["_order_date"].fillna(date_str)
         unique_dates = order_df["_order_date"].dropna().unique()

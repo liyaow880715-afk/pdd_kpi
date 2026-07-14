@@ -4,6 +4,7 @@
 
 import pandas as pd
 import numpy as np
+from datetime import datetime
 from typing import Dict, Tuple, Optional
 
 
@@ -98,17 +99,48 @@ def _parse_order_date(val) -> Optional[str]:
         return None
 
 
+def _parse_date_from_order_id(val) -> Optional[str]:
+    """从订单号前 6 位（如 260701）解析日期（2026-07-01）"""
+    if pd.isna(val):
+        return None
+    s = str(val).strip()
+    if len(s) < 6:
+        return None
+    prefix = s[:6]
+    if not prefix.isdigit():
+        return None
+    try:
+        dt = datetime.strptime(prefix, "%y%m%d")
+        return dt.strftime("%Y-%m-%d")
+    except Exception:
+        return None
+
+
 def extract_order_dates(df: pd.DataFrame) -> pd.Series:
     """
     从订单数据中提取每条订单的日期。
-    优先使用 order_time，其次 pay_time，最后 order_time 原始列。
+    优先使用 order_time，其次 pay_time；都没有时尝试订单号前 6 位。
     """
+    dates = pd.Series([None] * len(df), index=df.index)
     for col in ["order_time", "pay_time", "成交时间", "支付时间", "下单时间"]:
         if col in df.columns:
-            dates = df[col].apply(_parse_order_date)
-            if dates.notna().any():
-                return dates
-    return pd.Series([None] * len(df), index=df.index)
+            parsed = df[col].apply(_parse_order_date)
+            if parsed.notna().any():
+                dates = dates.combine_first(parsed)
+                break
+
+    # 兜底：用订单号前 6 位解析日期
+    if dates.isna().any():
+        id_col = None
+        for c in ["order_id", "订单号", "订单编号", "子订单号"]:
+            if c in df.columns:
+                id_col = c
+                break
+        if id_col:
+            id_dates = df[id_col].apply(_parse_date_from_order_id)
+            dates = dates.combine_first(id_dates)
+
+    return dates
 
 
 def filter_orders_by_date(df: pd.DataFrame, date: str) -> pd.DataFrame:
