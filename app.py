@@ -65,6 +65,7 @@ from dashboard import (
     render_ai_tab,
     render_import_module,
     render_recent_imports,
+    render_order_detail_module,
     render_store_overview,
     render_history_module,
     render_store_management,
@@ -354,6 +355,40 @@ def main():
             process_import(config, import_state)
             st.rerun()
         render_recent_imports(store_name)
+
+    elif active_module == "📋 订单明细":
+        action_state = render_order_detail_module(store_name)
+        if action_state.get("action") == "save_product_merchant_mapping":
+            from cost_manager import (
+                load_cost_config,
+                save_cost_config,
+                set_product_merchant_mapping,
+                set_cost,
+            )
+            cfg = load_cost_config()
+            cfg = set_product_merchant_mapping(
+                cfg,
+                store_name=store_name,
+                product_id=action_state["product_id"],
+                merchant_code=action_state["merchant_code"],
+            )
+            # 同步把该商家编码加入成本表，方便立刻维护成本
+            costs = cfg.get("merchant_costs", {}).get(store_name, {})
+            if action_state["merchant_code"] not in costs:
+                cfg = set_cost(
+                    cfg,
+                    store_name=store_name,
+                    merchant_code=action_state["merchant_code"],
+                    product_name="",
+                    product_cost=0.0,
+                    logistics_cost=0.0,
+                )
+            save_cost_config(cfg)
+            st.success(
+                f"✅ 已保存映射：商品 {action_state['product_id']} -> 商家编码 {action_state['merchant_code']}，"
+                "请在「成本管理」中维护成本。"
+            )
+            st.rerun()
 
     elif active_module == "🏠 店铺总览":
         render_store_overview(config)

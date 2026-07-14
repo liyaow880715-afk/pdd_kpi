@@ -51,6 +51,7 @@ def _auto_save_cost_callback():
 # 左侧导航选项
 NAV_MODULES = [
     "📥 导入数据",
+    "📋 订单明细",
     "🏠 店铺总览",
     "📊 核心指标",
     "🛒 商品分析",
@@ -850,6 +851,128 @@ def render_recent_imports(store_name: str, limit: int = 10):
             with c3:
                 st.caption(f"🕒 {rec.get('saved_at', '-')[:10]}")
         st.divider()
+
+
+def render_order_detail_module(store_name: str) -> dict:
+    """渲染订单明细模块，支持查看订单并按商品 ID 维护商家编码"""
+    st.subheader("📋 订单明细")
+    st.caption("查看已导入订单，按商品维护商家编码后可在「成本管理」维护成本")
+
+    from storage import load_daily_orders, list_available_dates
+
+    dates = list_available_dates(store_name)
+    if not dates:
+        st.info("暂无订单数据，请先在「导入数据」中上传。")
+        return {"action": None}
+
+    selected_date = st.selectbox(
+        "选择日期",
+        options=dates,
+        key="order_detail_date_select",
+    )
+
+    try:
+        orders = load_daily_orders(selected_date, store_name)
+    except Exception as e:
+        st.error(f"加载订单失败: {e}")
+        return {"action": None}
+
+    if orders.empty:
+        st.info(f"{selected_date} 暂无订单数据")
+        return {"action": None}
+
+    orders = orders.copy()
+    if "merchant_code" not in orders.columns:
+        orders["merchant_code"] = ""
+    orders["merchant_code"] = orders["merchant_code"].fillna("").astype(str).str.strip()
+
+    missing_mask = orders["merchant_code"] == ""
+    st.markdown(
+        f"**{selected_date}** 共 **{len(orders)}** 笔订单，"
+        f"**{missing_mask.sum()}** 笔缺少商家编码"
+    )
+
+    # 商品维度汇总
+    if "product_id" not in orders.columns or orders["product_id"].isna().all():
+        st.info("订单数据缺少商品 ID，无法展示商品维度")
+        return {"action": None}
+
+    product_summary = (
+        orders.dropna(subset=["product_id"])
+        .groupby("product_id", as_index=False)
+        .agg(
+            product_name=("product_name", "first"),
+            style_name=("style_name", "first"),
+            merchant_code=("merchant_code", lambda x: x[x.astype(str).str.strip() != ""].iloc[0] if any(x.astype(str).str.strip() != "") else ""),
+            order_count=("order_id", "count"),
+        )
+    )
+    product_summary["product_id_str"] = product_summary["product_id"].apply(lambda x: str(x).strip().removesuffix(".0"))
+
+    show_missing_only = st.checkbox("仅显示缺少商家编码的商品", value=False, key="order_detail_missing_only")
+    summary_display = product_summary[product_summary["merchant_code"] == ""] if show_missing_only else product_summary
+
+    st.markdown("##### 商品商家编码一览")
+    show_cols = ["product_id_str", "product_name", "style_name", "merchant_code", "order_count"]
+    show_cols = [c for c in show_cols if c in summary_display.columns]
+    st.dataframe(
+        summary_display[show_cols].rename(columns={"product_id_str": "商品ID"}),
+        use_container_width=True,
+        height=300,
+    )
+
+    with st.expander("查看原始订单明细"):
+        display_cols = [
+            "pay_time", "order_id", "product_id", "product_name", "style_name",
+            "merchant_code", "order_status", "aftersales_status",
+            "quantity", "item_total", "user_paid", "merchant_income",
+        ]
+        display_cols = [c for c in display_cols if c in orders.columns]
+        st.dataframe(orders[display_cols], use_container_width=True, height=400)
+
+    # 维护/补充商家编码
+    st.markdown("---")
+    st.markdown("##### 维护商品商家编码")
+
+    product_options = {}
+    for _, row in product_summary.iterrows():
+        pid = row["product_id_str"]
+        label = f"{row['product_name']}（ID: {pid}，当前: {row['merchant_code'] or '无'}）"
+        product_options[label] = pid
+
+    selected_label = st.selectbox(
+        "选择商品",
+        options=list(product_options.keys()),
+        key="order_detail_product_select",
+    )
+    selected_pid = product_options[selected_label]
+    current_code = product_summary.set_index("product_id_str").at[selected_pid, "merchant_code"]
+
+    c1, c2 = st.columns([1, 2])
+    with c1:
+        st.text_input("当前商家编码", value=current_code, disabled=True, key="order_detail_current_code")
+    with c2:
+        new_code = st.text_input(
+            "新商家编码",
+            placeholder="输入或修改该商品的商家编码",
+            key="order_detail_new_code",
+        )
+
+    save_clicked = st.button(
+        "💾 保存映射",
+        use_container_width=True,
+        type="primary",
+        key="order_detail_save_mapping",
+    )
+
+    if save_clicked and new_code.strip():
+        return {
+            "action": "save_product_merchant_mapping",
+            "product_id": selected_pid,
+            "merchant_code": new_code.strip(),
+        }
+
+    return {"action": None}
 
 
 def render_store_overview(config: dict = None):

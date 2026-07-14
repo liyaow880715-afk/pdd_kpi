@@ -50,6 +50,16 @@ def _normalize_code(code) -> str:
     return str(code).strip()
 
 
+def _normalize_product_id(pid) -> str:
+    """把商品 ID 统一为不带 .0 的字符串"""
+    if pd.isna(pid):
+        return ""
+    s = str(pid).strip()
+    if s.endswith(".0"):
+        s = s[:-2]
+    return s
+
+
 def get_cost(config: Dict, store_name: Optional[str], merchant_code: str) -> Dict:
     """获取某个商家编码的成本"""
     store = _normalize_store(store_name)
@@ -109,6 +119,45 @@ def list_store_costs(config: Dict, store_name: Optional[str]) -> List[Dict]:
     return rows
 
 
+def load_product_merchant_mapping(config: Dict, store_name: Optional[str]) -> Dict[str, str]:
+    """加载用户手动维护的 product_id -> merchant_code 映射"""
+    store = _normalize_store(store_name)
+    return config.get("product_merchant_maps", {}).get(store, {})
+
+
+def set_product_merchant_mapping(
+    config: Dict,
+    store_name: Optional[str],
+    product_id,
+    merchant_code: str,
+) -> Dict:
+    """保存/更新 product_id -> merchant_code 映射"""
+    store = _normalize_store(store_name)
+    if "product_merchant_maps" not in config:
+        config["product_merchant_maps"] = {}
+    if store not in config["product_merchant_maps"]:
+        config["product_merchant_maps"][store] = {}
+
+    pid = _normalize_product_id(product_id)
+    code = _normalize_code(merchant_code)
+    if pid and code:
+        config["product_merchant_maps"][store][pid] = code
+    return config
+
+
+def delete_product_merchant_mapping(
+    config: Dict,
+    store_name: Optional[str],
+    product_id,
+) -> Dict:
+    """删除 product_id -> merchant_code 映射"""
+    store = _normalize_store(store_name)
+    pid = _normalize_product_id(product_id)
+    if pid:
+        config.get("product_merchant_maps", {}).get(store, {}).pop(pid, None)
+    return config
+
+
 def _find_merchant_code_column(orders: pd.DataFrame) -> Optional[str]:
     """兼容新旧数据，找到商家编码所在列"""
     if "merchant_code" in orders.columns:
@@ -163,11 +212,19 @@ def append_new_merchant_codes(store_name: Optional[str]) -> int:
     saved = cfg.get("merchant_costs", {}).get(store, {})
     detected_df = extract_merchant_codes_from_orders(store)
 
-    if detected_df.empty:
+    # 同时把用户手动维护的映射里的商家编码也加入成本表
+    mapping = load_product_merchant_mapping(cfg, store)
+    detected_codes = set()
+    if not detected_df.empty:
+        detected_codes = set(detected_df["merchant_code"].astype(str).tolist())
+    mapped_codes = set(str(v) for v in mapping.values() if v)
+    all_codes = detected_codes | mapped_codes
+
+    if not all_codes:
         return 0
 
     added = 0
-    for code in detected_df["merchant_code"]:
+    for code in all_codes:
         code = _normalize_code(code)
         if not code or code in saved:
             continue
@@ -191,10 +248,10 @@ def _build_product_id_to_merchant_code(store_name: Optional[str]) -> Dict[str, s
             if not code_col or "product_id" not in orders.columns:
                 continue
             for _, r in orders.iterrows():
-                pid = r.get("product_id")
+                pid = _normalize_product_id(r.get("product_id"))
                 code = _normalize_code(r.get(code_col))
-                if pd.notna(pid) and code and str(pid) not in mapping:
-                    mapping[str(pid)] = code
+                if pid and code and pid not in mapping:
+                    mapping[pid] = code
         except Exception:
             continue
     return mapping
@@ -233,7 +290,14 @@ def apply_costs_to_metrics(metrics: pd.DataFrame, store_name: Optional[str]) -> 
     else:
         df["merchant_code"] = ""
 
-    # 旧数据回退：用 product_id 反查商家编码
+    # 用户手动维护的 product_id -> merchant_code 映射优先（覆盖订单中的编码）
+    if "product_id" in df.columns:
+        mapping = load_product_merchant_mapping(config, store)
+        if mapping:
+            mapped_codes = df["product_id"].apply(_normalize_product_id).map(mapping)
+            df["merchant_code"] = mapped_codes.fillna(df["merchant_code"])
+
+    # 旧数据回退：用 product_id 从历史订单反查商家编码
     merchant_codes_blank = df["merchant_code"].replace("", pd.NA).isna()
     if merchant_codes_blank.any() and "product_id" in df.columns:
         mapping = _build_product_id_to_merchant_code(store_name)
