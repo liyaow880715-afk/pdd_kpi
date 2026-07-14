@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Search } from "lucide-react"
+import { Search, Eye, EyeOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -17,15 +17,34 @@ function formatNumber(v: any, digits = 2) {
   return v
 }
 
-function KpiCard({ label, value, unit = "", indent = false }: { label: string; value: any; unit?: string; indent?: boolean }) {
+function KpiCard({
+  label,
+  value,
+  unit = "",
+  indent = false,
+  onClick,
+}: {
+  label: string
+  value: any
+  unit?: string
+  indent?: boolean
+  onClick?: () => void
+}) {
   return (
-    <Card className={indent ? "border-l-4 border-l-primary/30" : ""}>
+    <Card
+      onClick={onClick}
+      className={`relative cursor-pointer transition-colors hover:bg-muted/50 ${indent ? "border-l-4 border-l-primary/30" : ""}`}
+      title="点击隐藏"
+    >
       <CardHeader className="pb-2">
         <CardDescription className={`text-xs ${indent ? "pl-2" : ""}`}>{label}</CardDescription>
         <CardTitle className={`text-xl ${indent ? "pl-2" : ""}`}>
           {formatNumber(value)} {unit && <span className="text-sm font-normal text-muted-foreground">{unit}</span>}
         </CardTitle>
       </CardHeader>
+      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <EyeOff className="h-3 w-3 text-muted-foreground" />
+      </div>
     </Card>
   )
 }
@@ -163,10 +182,30 @@ export function MetricsPage() {
   const [trend, setTrend] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState("overview")
+  const [hiddenKpis, setHiddenKpis] = useState<Set<string>>(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem("pdd_hidden_kpis") || "[]"))
+    } catch {
+      return new Set()
+    }
+  })
 
   useEffect(() => {
     getStores().then(setStores)
   }, [])
+
+  const toggleKpi = (key: string) => {
+    setHiddenKpis((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      localStorage.setItem("pdd_hidden_kpis", JSON.stringify(Array.from(next)))
+      return next
+    })
+  }
 
   const handleAnalyze = async () => {
     if (!storeName) return
@@ -230,19 +269,44 @@ export function MetricsPage() {
 
           <TabsContent value="overview" className="space-y-4">
             {kpiGroups.map((group) => {
-              const visibleItems = group.items.filter((item) => kpis[item.key] !== undefined && kpis[item.key] !== null)
-              if (visibleItems.length === 0) return null
+              const allItems = group.items.filter((item) => kpis[item.key] !== undefined && kpis[item.key] !== null)
+              const visibleItems = allItems.filter((item) => !hiddenKpis.has(item.key))
+              const hiddenItems = allItems.filter((item) => hiddenKpis.has(item.key))
+              if (allItems.length === 0) return null
               return (
                 <Card key={group.title}>
                   <CardHeader>
                     <CardTitle>{group.title}</CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="space-y-3">
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                       {visibleItems.map((item) => (
-                        <KpiCard key={item.key} label={item.label} value={kpis[item.key]} unit={item.unit} indent={(item as any).indent} />
+                        <KpiCard
+                          key={item.key}
+                          label={item.label}
+                          value={kpis[item.key]}
+                          unit={item.unit}
+                          indent={(item as any).indent}
+                          onClick={() => toggleKpi(item.key)}
+                        />
                       ))}
                     </div>
+                    {hiddenItems.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-2 pt-2 border-t">
+                        <span className="text-xs text-muted-foreground">已隐藏：</span>
+                        {hiddenItems.map((item) => (
+                          <button
+                            key={item.key}
+                            onClick={() => toggleKpi(item.key)}
+                            className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-muted hover:bg-muted/80"
+                            title="点击显示"
+                          >
+                            <Eye className="h-3 w-3" />
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               )
