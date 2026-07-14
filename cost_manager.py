@@ -327,7 +327,7 @@ def apply_costs_to_metrics(metrics: pd.DataFrame, store_name: Optional[str]) -> 
         if mapping:
             df.loc[merchant_codes_blank, "merchant_code"] = (
                 df.loc[merchant_codes_blank, "product_id"]
-                .astype(str)
+                .apply(_normalize_product_id)
                 .map(mapping)
             )
     df["merchant_code"] = df["merchant_code"].fillna("").astype(str).str.strip()
