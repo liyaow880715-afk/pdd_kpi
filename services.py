@@ -110,6 +110,28 @@ def import_daily_data(
     order_df = filter_orders_by_date(order_df, date_str)
     filtered_order_rows = len(order_df)
 
+    # 与该日已有订单合并，按 order_id 更新状态（实现后续退款状态更新）
+    try:
+        existing_orders = load_daily_orders(date_str, store_name)
+    except Exception:
+        existing_orders = pd.DataFrame()
+    if not existing_orders.empty and "order_id" in existing_orders.columns and "order_id" in order_df.columns:
+        existing_orders = existing_orders.copy()
+        existing_orders["order_id"] = existing_orders["order_id"].astype(str)
+        order_df = order_df.copy()
+        order_df["order_id"] = order_df["order_id"].astype(str)
+
+        existing_indexed = existing_orders.set_index("order_id")
+        new_indexed = order_df.set_index("order_id")
+
+        # 用新数据更新已有订单（相同列）
+        existing_indexed.update(new_indexed)
+
+        # 追加新订单
+        new_only = new_indexed.loc[~new_indexed.index.isin(existing_indexed.index)]
+        combined = pd.concat([existing_indexed.reset_index(), new_only.reset_index()], ignore_index=True)
+        order_df = combined
+
     merged, style_metrics, orders = match_promotion_and_orders(
         promo_df,
         order_df,
