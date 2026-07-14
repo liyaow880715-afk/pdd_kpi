@@ -51,6 +51,25 @@ def _is_refund(row) -> int:
     return 0
 
 
+def _classify_refund_stage(row) -> str:
+    """把退款订单细分为：未发货退款 / 已发货退款 / 已收货退款"""
+    status = str(row.get("order_status", ""))
+    if "未发货" in status:
+        return "unshipped"
+    if "已收货" in status:
+        return "received"
+    if "已发货" in status:
+        return "shipped"
+    # 仅售后状态为退款成功但订单状态未明确时，用发货/收货时间推断
+    confirm_time = row.get("确认收货时间")
+    if pd.notna(confirm_time) and str(confirm_time).strip() and str(confirm_time).strip() not in ("-", "NaT"):
+        return "received"
+    ship_time = row.get("发货时间")
+    if pd.notna(ship_time) and str(ship_time).strip() and str(ship_time).strip() not in ("-", "NaT"):
+        return "shipped"
+    return "unshipped"
+
+
 def _is_cancel(row) -> int:
     """判断是否为取消订单"""
     status = str(row.get("order_status", ""))
@@ -111,6 +130,15 @@ def preprocess_orders(df: pd.DataFrame, mapping: Dict[str, Optional[str]]) -> pd
     df["is_cancel"] = df.apply(_is_cancel, axis=1)
     df["is_valid"] = ((df["is_refund"] == 0) & (df["is_cancel"] == 0)).astype(int)
 
+    # 退款阶段细分
+    df["refund_stage"] = df.apply(
+        lambda r: _classify_refund_stage(r) if r["is_refund"] == 1 else "", axis=1
+    )
+    df["is_refund_unshipped"] = (df["refund_stage"] == "unshipped").astype(int)
+    df["is_refund_shipped"] = (df["refund_stage"] == "shipped").astype(int)
+    df["is_refund_received"] = (df["refund_stage"] == "received").astype(int)
+    df = df.drop(columns=["refund_stage"])
+
     return df
 
 
@@ -168,6 +196,9 @@ def aggregate_orders_by_product(
         valid_merchant_income=("is_valid", lambda x: (orders.loc[x.index, "merchant_income"] * x).sum()),
         refund_count=("is_refund", "sum"),
         cancel_count=("is_cancel", "sum"),
+        refund_unshipped_count=("is_refund_unshipped", "sum"),
+        refund_shipped_count=("is_refund_shipped", "sum"),
+        refund_received_count=("is_refund_received", "sum"),
     )
     # 取第一个商品名称和商家编码
     names = orders.groupby("product_id")["product_name_raw"].first().reset_index()
@@ -209,6 +240,9 @@ def aggregate_orders_by_style(
         valid_merchant_income=("is_valid", lambda x: (orders.loc[x.index, "merchant_income"] * x).sum()),
         refund_count=("is_refund", "sum"),
         cancel_count=("is_cancel", "sum"),
+        refund_unshipped_count=("is_refund_unshipped", "sum"),
+        refund_shipped_count=("is_refund_shipped", "sum"),
+        refund_received_count=("is_refund_received", "sum"),
     )
 
     # 取名称和商家编码

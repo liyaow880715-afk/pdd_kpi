@@ -14,6 +14,65 @@ def safe_div(numerator, denominator, default=0.0):
     return numerator / denominator
 
 
+def _aggregate_refund_stage_counts_from_orders(order_dfs: List[pd.DataFrame]) -> pd.DataFrame:
+    """从订单明细中按 product_id 汇总未发货/已发货/已收货退款数（兼容旧数据）"""
+    from data_processor import _classify_refund_stage
+    if not order_dfs:
+        return pd.DataFrame(columns=["product_id", "refund_unshipped_count", "refund_shipped_count", "refund_received_count"])
+    combined = pd.concat(order_dfs, ignore_index=True)
+    if combined.empty or "product_id" not in combined.columns:
+        return pd.DataFrame(columns=["product_id", "refund_unshipped_count", "refund_shipped_count", "refund_received_count"])
+
+    # 退款标记兼容旧数据
+    if "is_refund" not in combined.columns:
+        status = combined.get("order_status", "")
+        aftersales = combined.get("aftersales_status", "")
+        combined["is_refund"] = (
+            status.astype(str).str.contains("退款成功") |
+            aftersales.astype(str).str.contains("退款成功") |
+            status.astype(str).str.contains("售后中")
+        ).astype(int)
+
+    combined = combined.copy()
+    combined["refund_stage"] = combined.apply(
+        lambda r: _classify_refund_stage(r) if r.get("is_refund") == 1 else "", axis=1
+    )
+    for stage, col in [("unshipped", "is_refund_unshipped"), ("shipped", "is_refund_shipped"), ("received", "is_refund_received")]:
+        combined[col] = (combined["refund_stage"] == stage).astype(int)
+
+    agg = combined.groupby("product_id", as_index=False).agg(
+        refund_unshipped_count=("is_refund_unshipped", "sum"),
+        refund_shipped_count=("is_refund_shipped", "sum"),
+        refund_received_count=("is_refund_received", "sum"),
+    )
+    return agg
+
+
+def merge_refund_stage_counts(metrics: pd.DataFrame, order_dfs: List[pd.DataFrame]) -> pd.DataFrame:
+    """若商品指标缺少退款阶段字段，或阶段字段与总退款数不匹配，则从订单明细补齐"""
+    if metrics is None or metrics.empty:
+        return metrics
+    stage_cols = ["refund_unshipped_count", "refund_shipped_count", "refund_received_count"]
+    stage_present = all(c in metrics.columns for c in stage_cols)
+    if stage_present:
+        stage_sum = metrics[stage_cols].sum().sum()
+        refund_total = metrics.get("refund_count", pd.Series(0, index=metrics.index)).sum()
+        if abs(stage_sum - refund_total) < 1e-6:
+            return metrics
+    if not order_dfs:
+        return metrics
+    agg = _aggregate_refund_stage_counts_from_orders(order_dfs)
+    if agg.empty:
+        return metrics
+    # 避免旧数据的 0 字段与 agg 字段重名导致合并后产生 _x/_y
+    metrics = metrics.drop(columns=[c for c in stage_cols if c in metrics.columns])
+    metrics = metrics.merge(agg, on="product_id", how="left")
+    for c in stage_cols:
+        if c in metrics.columns:
+            metrics[c] = metrics[c].fillna(0)
+    return metrics
+
+
 def compute_product_metrics(merged: pd.DataFrame) -> pd.DataFrame:
     """
     在匹配后的 DataFrame 上计算商品/样式级指标
@@ -26,11 +85,18 @@ def compute_product_metrics(merged: pd.DataFrame) -> pd.DataFrame:
         "exposure", "clicks",
         "order_count", "valid_order_count", "order_gmv", "valid_order_gmv",
         "merchant_income", "valid_merchant_income",
-        "refund_count", "cancel_count", "quantity", "valid_quantity"
+        "refund_count", "cancel_count",
+        "refund_unshipped_count", "refund_shipped_count", "refund_received_count",
+        "quantity", "valid_quantity"
     ]
     for c in numeric_cols:
         if c in df.columns:
             df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
+
+    # 兼容旧数据：退款阶段字段不存在时补 0
+    for c in ["refund_unshipped_count", "refund_shipped_count", "refund_received_count"]:
+        if c not in df.columns:
+            df[c] = 0
 
     # 推广侧指标
     df["promo_roi"] = df.apply(
@@ -59,6 +125,15 @@ def compute_product_metrics(merged: pd.DataFrame) -> pd.DataFrame:
     df["problem_rate"] = df.apply(
         lambda r: safe_div(r["refund_count"] + r["cancel_count"], r["order_count"]) * 100,
         axis=1,
+    )
+    df["refund_unshipped_rate"] = df.apply(
+        lambda r: safe_div(r["refund_unshipped_count"], r["order_count"]) * 100, axis=1
+    )
+    df["refund_shipped_rate"] = df.apply(
+        lambda r: safe_div(r["refund_shipped_count"], r["order_count"]) * 100, axis=1
+    )
+    df["refund_received_rate"] = df.apply(
+        lambda r: safe_div(r["refund_received_count"], r["order_count"]) * 100, axis=1
     )
 
     # 真实 ROI：剔除退款和取消订单后的商家实收 / 推广花费
@@ -131,6 +206,9 @@ def compute_overall_kpis(metrics: pd.DataFrame) -> Dict[str, float]:
         "valid_merchant_income": metrics["valid_merchant_income"].sum(),
         "refund_count": metrics["refund_count"].sum(),
         "cancel_count": metrics["cancel_count"].sum(),
+        "refund_unshipped_count": metrics.get("refund_unshipped_count", pd.Series(0, index=metrics.index)).sum(),
+        "refund_shipped_count": metrics.get("refund_shipped_count", pd.Series(0, index=metrics.index)).sum(),
+        "refund_received_count": metrics.get("refund_received_count", pd.Series(0, index=metrics.index)).sum(),
         "organic_orders": metrics["organic_orders"].sum(),
         "organic_gmv": metrics["organic_gmv"].sum(),
     }
@@ -150,6 +228,9 @@ def compute_overall_kpis(metrics: pd.DataFrame) -> Dict[str, float]:
         "problem_rate": safe_div(
             totals["refund_count"] + totals["cancel_count"], totals["order_count"]
         ) * 100,
+        "refund_unshipped_rate": safe_div(totals["refund_unshipped_count"], totals["order_count"]) * 100,
+        "refund_shipped_rate": safe_div(totals["refund_shipped_count"], totals["order_count"]) * 100,
+        "refund_received_rate": safe_div(totals["refund_received_count"], totals["order_count"]) * 100,
         "ctr": safe_div(totals["clicks"], totals["exposure"]) * 100,
         "click_to_order_rate": safe_div(totals["promo_orders"], totals["clicks"]) * 100,
         "cpc": safe_div(totals["promo_spend"], totals["clicks"]),
@@ -162,6 +243,9 @@ def compute_overall_kpis(metrics: pd.DataFrame) -> Dict[str, float]:
         "organic_gmv": totals["organic_gmv"],
         "refund_count": totals["refund_count"],
         "cancel_count": totals["cancel_count"],
+        "refund_unshipped_count": totals["refund_unshipped_count"],
+        "refund_shipped_count": totals["refund_shipped_count"],
+        "refund_received_count": totals["refund_received_count"],
         **cost_totals,
     }
     return kpis
@@ -193,6 +277,10 @@ def aggregate_product_metrics(daily_metrics_list: List[pd.DataFrame]) -> pd.Data
         "refund_count", "cancel_count", "quantity", "valid_quantity",
         "organic_orders", "organic_gmv",
     ]
+    # 退款阶段字段若已存在则一起汇总
+    for refund_col in ["refund_unshipped_count", "refund_shipped_count", "refund_received_count"]:
+        if refund_col in combined.columns:
+            sum_cols.append(refund_col)
     # 成本相关字段若已存在则一起汇总
     for cost_col in ["total_cost", "link_gross_profit", "profit_loss"]:
         if cost_col in combined.columns:
@@ -242,6 +330,18 @@ def compute_style_metrics(orders: pd.DataFrame) -> pd.DataFrame:
     if "style_name" in orders.columns and orders["style_name"].notna().any():
         group_cols.append("style_name")
 
+    # 兼容旧数据：若订单明细缺少退款阶段标记，则根据订单状态补齐
+    if "is_refund_unshipped" not in orders.columns:
+        from data_processor import _classify_refund_stage
+        orders = orders.copy()
+        orders["refund_stage"] = orders.apply(
+            lambda r: _classify_refund_stage(r) if r.get("is_refund") == 1 else "", axis=1
+        )
+        orders["is_refund_unshipped"] = (orders["refund_stage"] == "unshipped").astype(int)
+        orders["is_refund_shipped"] = (orders["refund_stage"] == "shipped").astype(int)
+        orders["is_refund_received"] = (orders["refund_stage"] == "received").astype(int)
+        orders = orders.drop(columns=["refund_stage"])
+
     agg = orders.groupby(group_cols, as_index=False).agg(
         order_count=("order_id", "count"),
         valid_order_count=("is_valid", "sum"),
@@ -255,6 +355,9 @@ def compute_style_metrics(orders: pd.DataFrame) -> pd.DataFrame:
         valid_merchant_income=("is_valid", lambda x: (orders.loc[x.index, "merchant_income"] * x).sum()),
         refund_count=("is_refund", "sum"),
         cancel_count=("is_cancel", "sum"),
+        refund_unshipped_count=("is_refund_unshipped", "sum"),
+        refund_shipped_count=("is_refund_shipped", "sum"),
+        refund_received_count=("is_refund_received", "sum"),
     )
 
     agg["refund_rate"] = agg.apply(
@@ -262,6 +365,15 @@ def compute_style_metrics(orders: pd.DataFrame) -> pd.DataFrame:
     )
     agg["cancel_rate"] = agg.apply(
         lambda r: safe_div(r["cancel_count"], r["order_count"]) * 100, axis=1
+    )
+    agg["refund_unshipped_rate"] = agg.apply(
+        lambda r: safe_div(r["refund_unshipped_count"], r["order_count"]) * 100, axis=1
+    )
+    agg["refund_shipped_rate"] = agg.apply(
+        lambda r: safe_div(r["refund_shipped_count"], r["order_count"]) * 100, axis=1
+    )
+    agg["refund_received_rate"] = agg.apply(
+        lambda r: safe_div(r["refund_received_count"], r["order_count"]) * 100, axis=1
     )
     agg["avg_order_gmv"] = agg.apply(
         lambda r: safe_div(r["order_gmv"], r["order_count"]), axis=1

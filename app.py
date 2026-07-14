@@ -34,6 +34,7 @@ from metrics import (
     compute_overall_kpis,
     aggregate_product_metrics,
     aggregate_style_metrics,
+    merge_refund_stage_counts,
 )
 from ai_analyzer import generate_ai_report
 from api_client import test_connection, get_ai_log_tail
@@ -123,6 +124,8 @@ def load_analysis_data(store_name: str, start_date, end_date):
         return None, None, None
 
     metrics = aggregate_product_metrics(product_dfs)
+    metrics = merge_refund_stage_counts(metrics, order_dfs)
+    metrics = compute_product_metrics(metrics)
     metrics = apply_costs_to_metrics(metrics, store_name)
     style_metrics = aggregate_style_metrics(order_dfs) if order_dfs else pd.DataFrame()
     kpis = compute_overall_kpis(metrics)

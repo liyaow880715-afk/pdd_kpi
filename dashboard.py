@@ -553,6 +553,7 @@ def render_product_table(metrics: pd.DataFrame):
         "product_cost_unit", "logistics_cost_unit", "total_cost",
         "link_gross_profit", "profit_loss", "gross_margin_rate",
         "refund_rate", "cancel_rate", "problem_rate",
+        "refund_unshipped_rate", "refund_shipped_rate", "refund_received_rate",
         "organic_ratio_gmv", "ctr", "click_to_order_rate"
     ]
     display_cols = [c for c in display_cols if c in metrics.columns]
@@ -579,6 +580,9 @@ def render_product_table(metrics: pd.DataFrame):
         "refund_rate": "退款率(%)",
         "cancel_rate": "取消率(%)",
         "problem_rate": "问题率(%)",
+        "refund_unshipped_rate": "未发货退款率(%)",
+        "refund_shipped_rate": "已发货退款率(%)",
+        "refund_received_rate": "已收货退款率(%)",
         "organic_ratio_gmv": "自然流量 GMV 占比(%)",
         "ctr": "点击率(%)",
         "click_to_order_rate": "点击转化率(%)",
@@ -698,8 +702,14 @@ def render_style_table(style_metrics: pd.DataFrame):
         "valid_merchant_income": "有效商家实收",
         "refund_count": "退款数",
         "cancel_count": "取消数",
+        "refund_unshipped_count": "未发货退款数",
+        "refund_shipped_count": "已发货退款数",
+        "refund_received_count": "已收货退款数",
         "refund_rate": "退款率(%)",
         "cancel_rate": "取消率(%)",
+        "refund_unshipped_rate": "未发货退款率(%)",
+        "refund_shipped_rate": "已发货退款率(%)",
+        "refund_received_rate": "已收货退款率(%)",
         "avg_order_gmv": "客单价",
         "avg_valid_order_gmv": "有效客单价",
         "avg_order_income": "单均实收",
@@ -847,8 +857,13 @@ def render_store_overview(config: dict = None):
     st.subheader("🏠 店铺总览")
     st.caption("对比所选日期范围内各店铺的汇总表现")
 
-    from metrics import compute_overall_kpis, aggregate_product_metrics
-    from storage import load_daily_data, list_available_dates
+    from metrics import (
+        compute_overall_kpis,
+        aggregate_product_metrics,
+        compute_product_metrics,
+        merge_refund_stage_counts,
+    )
+    from storage import load_daily_data, load_daily_orders, list_available_dates
     from cost_manager import apply_costs_to_metrics
 
     config = config or {}
@@ -868,6 +883,7 @@ def render_store_overview(config: dict = None):
         if not dates:
             continue
         dfs = []
+        order_dfs = []
         for d in dates:
             try:
                 metrics, _ = load_daily_data(d, store)
@@ -875,10 +891,18 @@ def render_store_overview(config: dict = None):
                 dfs.append(metrics)
             except Exception:
                 continue
+            try:
+                orders = load_daily_orders(d, store)
+                if not orders.empty:
+                    order_dfs.append(orders)
+            except Exception:
+                continue
         if not dfs:
             continue
         try:
             metrics = aggregate_product_metrics(dfs)
+            metrics = merge_refund_stage_counts(metrics, order_dfs)
+            metrics = compute_product_metrics(metrics)
             kpis = compute_overall_kpis(metrics)
             overview_rows.append({
                 "店铺": store,
@@ -890,6 +914,9 @@ def render_store_overview(config: dict = None):
                 "真实 ROI": kpis.get("real_roi", 0),
                 "盈亏": kpis.get("profit_loss", 0),
                 "退款率": kpis.get("refund_rate", 0),
+                "未发货退款率": kpis.get("refund_unshipped_rate", 0),
+                "已发货退款率": kpis.get("refund_shipped_rate", 0),
+                "已收货退款率": kpis.get("refund_received_rate", 0),
                 "取消率": kpis.get("cancel_rate", 0),
                 "订单数": kpis.get("order_count", 0),
             })
@@ -925,7 +952,7 @@ def render_store_overview(config: dict = None):
                         <span class="store-overview-label"> 盈亏</span>
                     </div>
                     <div>
-                        <span class="store-overview-label">统计 {row['统计日期']} · 花费 ¥{row['推广花费']:,.0f} · 退款率 {row['退款率']:.1f}% · 取消率 {row['取消率']:.1f}%</span>
+                        <span class="store-overview-label">统计 {row['统计日期']} · 花费 ¥{row['推广花费']:,.0f}<br/>退款 {row['退款率']:.1f}%（未发{row['未发货退款率']:.1f}% / 已发{row['已发货退款率']:.1f}% / 已收{row['已收货退款率']:.1f}%） · 取消 {row['取消率']:.1f}%</span>
                     </div>
                 </div>
                 """,
@@ -944,6 +971,9 @@ def render_store_overview(config: dict = None):
             "真实 ROI": st.column_config.NumberColumn(format="%.2f"),
             "盈亏": st.column_config.NumberColumn(format="¥%.0f"),
             "退款率": st.column_config.NumberColumn(format="%.2f%%"),
+            "未发货退款率": st.column_config.NumberColumn(format="%.2f%%"),
+            "已发货退款率": st.column_config.NumberColumn(format="%.2f%%"),
+            "已收货退款率": st.column_config.NumberColumn(format="%.2f%%"),
             "取消率": st.column_config.NumberColumn(format="%.2f%%"),
         },
     )
