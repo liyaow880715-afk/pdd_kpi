@@ -113,8 +113,9 @@ def extract_order_dates(df: pd.DataFrame) -> pd.Series:
 
 def filter_orders_by_date(df: pd.DataFrame, date: str) -> pd.DataFrame:
     """
-    按订单实际成交/支付日期过滤，只保留与目标日期匹配的订单。
-    如果无法解析到任何日期，则返回原数据（兼容旧数据）。
+    按订单实际成交/支付日期过滤，保留与目标日期匹配的订单。
+    无法解析日期的行作为兜底保留（避免空时间导致数据丢失）。
+    如果完全无法解析到任何日期，则返回原数据（兼容旧数据）。
     """
     if df.empty:
         return df
@@ -123,7 +124,7 @@ def filter_orders_by_date(df: pd.DataFrame, date: str) -> pd.DataFrame:
     if df["_order_date"].notna().sum() == 0:
         df = df.drop(columns=["_order_date"])
         return df
-    filtered = df[df["_order_date"] == date].copy()
+    filtered = df[(df["_order_date"] == date) | (df["_order_date"].isna())].copy()
     filtered = filtered.drop(columns=["_order_date"])
     return filtered
 
