@@ -36,8 +36,12 @@ export function ImportPage() {
   }
 
   const handleImport = async () => {
-    if (!storeName || !promoFile || !orderFile) {
-      setMessage("请填写完整信息并上传两个文件")
+    if (!storeName) {
+      setMessage("请选择店铺")
+      return
+    }
+    if (!promoFile && !orderFile) {
+      setMessage("请至少上传推广数据或订单数据中的一个")
       return
     }
     setLoading(true)
@@ -46,13 +50,25 @@ export function ImportPage() {
       const formData = new FormData()
       formData.append("store_name", storeName)
       formData.append("import_date", importDate)
-      formData.append("promo_file", promoFile)
-      formData.append("order_file", orderFile)
+      if (promoFile) formData.append("promo_file", promoFile)
+      if (orderFile) formData.append("order_file", orderFile)
       const res = await importData(formData)
-      const filterInfo = res.original_order_rows && res.original_order_rows !== res.order_rows
-        ? `（订单 CSV 共 ${res.original_order_rows} 行，按日期过滤后保留 ${res.order_rows} 行）`
-        : ""
-      setMessage(`导入成功：商品 ${res.product_rows} 行，样式 ${res.style_rows} 行，订单 ${res.order_rows} 行 ${filterInfo}`)
+      if (res.error) {
+        setMessage(res.error)
+        return
+      }
+      const parts = []
+      if (res.computed) {
+        const filterInfo = res.original_order_rows && res.original_order_rows !== res.order_rows
+          ? `（订单 CSV 共 ${res.original_order_rows} 行，按日期过滤后保留 ${res.order_rows} 行）`
+          : ""
+        parts.push(`商品 ${res.product_rows} 行，样式 ${res.style_rows} 行，订单 ${res.order_rows} 行 ${filterInfo}`)
+      } else {
+        if (res.promo_saved) parts.push("推广数据已保存")
+        if (res.orders_saved) parts.push(`订单 ${res.order_rows} 行已保存`)
+      }
+      const msg = res.message ? `${res.message}` : `导入成功：${parts.join("，")}`
+      setMessage(msg)
       setPromoFile(null)
       setOrderFile(null)
       fetchRecords()

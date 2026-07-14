@@ -212,6 +212,36 @@ def load_daily_orders(date, store_name: Optional[str] = None) -> pd.DataFrame:
         raise FileNotFoundError(f"未找到 {store_name or '默认店铺'} {date_str} 的订单文件")
 
 
+def save_daily_promo(promo: pd.DataFrame, date: Optional[str] = None, store_name: Optional[str] = None):
+    """单独保存某日某店铺的原始推广数据"""
+    init_storage()
+    date_str = _date_to_str(date)
+    store_str = _store_to_str(store_name)
+    if not promo.empty and "store_name" not in promo.columns:
+        promo = promo.copy()
+        promo["store_name"] = store_name or "默认店铺"
+    try:
+        promo.to_parquet(PROCESSED_DIR / f"promo_{store_str}_{date_str}.parquet", index=False)
+    except Exception:
+        promo.to_csv(PROCESSED_DIR / f"promo_{store_str}_{date_str}.csv", index=False, encoding="utf-8-sig")
+
+
+def load_daily_promo(date, store_name: Optional[str] = None) -> pd.DataFrame:
+    """加载某日某店铺的原始推广数据"""
+    date_str = _date_to_str(date)
+    store_str = _store_to_str(store_name)
+
+    promo_path_parquet = PROCESSED_DIR / f"promo_{store_str}_{date_str}.parquet"
+    promo_path_csv = PROCESSED_DIR / f"promo_{store_str}_{date_str}.csv"
+
+    if promo_path_parquet.exists():
+        return pd.read_parquet(promo_path_parquet)
+    elif promo_path_csv.exists():
+        return pd.read_csv(promo_path_csv)
+    else:
+        raise FileNotFoundError(f"未找到 {store_name or '默认店铺'} {date_str} 的推广文件")
+
+
 def delete_daily_data(store_name: Optional[str], date):
     """删除某日某店铺的数据文件和 meta 记录"""
     init_storage()
@@ -220,7 +250,7 @@ def delete_daily_data(store_name: Optional[str], date):
     record_key = _record_key(store_str, date_str)
 
     # 删除文件
-    for prefix in ["product", "style", "orders"]:
+    for prefix in ["product", "style", "orders", "promo"]:
         for ext in ["parquet", "csv"]:
             f = PROCESSED_DIR / f"{prefix}_{store_str}_{date_str}.{ext}"
             if f.exists():
