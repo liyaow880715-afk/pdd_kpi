@@ -80,7 +80,12 @@ export function CostsPage() {
     const merchantCode = mappingCodes[key]
     if (!merchantCode) return
     try {
-      await mapProductToMerchantCode(row.product_id, merchantCode, row.style_id === "-" ? undefined : row.style_id)
+      await mapProductToMerchantCode(
+        row.product_id,
+        merchantCode,
+        row.style_id === "-" ? undefined : row.style_id,
+        row.product_name
+      )
       setMappingCodes((prev) => ({ ...prev, [key]: "" }))
       await fetchData()
       setMessage("映射成功")

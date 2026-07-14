@@ -189,8 +189,13 @@ export async function getUnmappedProducts() {
   return res.data
 }
 
-export async function mapProductToMerchantCode(productId: string, merchantCode: string, styleId?: string) {
-  const res = await api.post("/costs/global/map", { product_id: productId, merchant_code: merchantCode, style_id: styleId })
+export async function mapProductToMerchantCode(productId: string, merchantCode: string, styleId?: string, productName?: string) {
+  const res = await api.post("/costs/global/map", {
+    product_id: productId,
+    merchant_code: merchantCode,
+    style_id: styleId,
+    product_name: productName,
+  })
   return res.data
 }
 

@@ -560,6 +560,7 @@ def save_global_product_mapping(
     product_id,
     merchant_code: str,
     style_id=None,
+    product_name: str = "",
 ) -> Dict:
     """保存全局 product_id / style_id -> merchant_code 映射"""
     pid = _normalize_product_id(product_id)
@@ -577,9 +578,9 @@ def save_global_product_mapping(
             config[GLOBAL_PRODUCT_MAP_KEY] = {}
         config[GLOBAL_PRODUCT_MAP_KEY][pid] = code
 
-    # 如果该商家编码还没有成本记录，自动创建一个空记录，方便用户后续维护
+    # 如果该商家编码还没有成本记录，自动创建一个记录，方便用户后续维护
     if code not in load_global_costs(config):
-        config = save_global_cost(config, code)
+        config = save_global_cost(config, code, product_name=product_name or "")
     return config
 
 

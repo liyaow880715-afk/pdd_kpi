@@ -29,6 +29,7 @@ class ProductMappingRequest(BaseModel):
     product_id: str
     merchant_code: str
     style_id: Optional[str] = None
+    product_name: Optional[str] = None
 
 
 # ---------- 按店铺（旧接口，保留兼容） ----------
@@ -83,4 +84,6 @@ def list_unmapped_products():
 
 @router.post("/global/map", response_model=Dict[str, Any])
 def map_product_to_merchant_code(req: ProductMappingRequest):
-    return services.save_global_product_mapping_service(req.product_id, req.merchant_code, style_id=req.style_id)
+    return services.save_global_product_mapping_service(
+        req.product_id, req.merchant_code, style_id=req.style_id, product_name=req.product_name
+    )
