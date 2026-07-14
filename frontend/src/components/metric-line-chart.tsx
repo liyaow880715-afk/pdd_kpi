@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 
 interface MetricConfig {
   key: string
@@ -101,7 +101,6 @@ export function MetricLineChart({ data, title, description, metrics, hiddenKeys 
                   return [`${formatValue(value)}${cfg?.unit ? " " + cfg.unit : ""}`, name]
                 }}
               />
-              <Legend />
               {activeMetrics.map((m) => (
                 <Line
                   key={m.key}
