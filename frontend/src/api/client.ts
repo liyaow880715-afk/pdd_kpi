@@ -3,6 +3,18 @@ import { getToken, logout } from "./auth"
 
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "/api",
+  paramsSerializer: (params) => {
+    const parts: string[] = []
+    for (const [key, value] of Object.entries(params)) {
+      if (value === null || value === undefined) continue
+      if (Array.isArray(value)) {
+        value.forEach((v) => parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(v))}`))
+      } else {
+        parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+      }
+    }
+    return parts.join("&")
+  },
 })
 
 api.interceptors.request.use((config) => {
@@ -13,13 +25,29 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+function stringifyDetail(detail: any): string {
+  if (detail === null || detail === undefined) return ""
+  if (typeof detail === "string") return detail
+  if (typeof detail === "object") {
+    if (detail.msg) return String(detail.msg)
+    if (detail.message) return String(detail.message)
+    try {
+      return JSON.stringify(detail)
+    } catch {
+      return String(detail)
+    }
+  }
+  return String(detail)
+}
+
 api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
       logout()
     }
-    const msg = err.response?.data?.detail || err.message || "请求失败"
+    const detail = err.response?.data?.detail
+    const msg = stringifyDetail(detail) || err.message || "请求失败"
     return Promise.reject(new Error(msg))
   }
 )
