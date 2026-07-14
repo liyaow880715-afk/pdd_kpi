@@ -57,17 +57,19 @@ export function ImportPage() {
         setMessage(res.error)
         return
       }
-      const parts = []
-      if (res.computed) {
-        const filterInfo = res.original_order_rows && res.original_order_rows !== res.order_rows
-          ? `（订单 CSV 共 ${res.original_order_rows} 行，按日期过滤后保留 ${res.order_rows} 行）`
-          : ""
-        parts.push(`商品 ${res.product_rows} 行，样式 ${res.style_rows} 行，订单 ${res.order_rows} 行 ${filterInfo}`)
-      } else {
-        if (res.promo_saved) parts.push("推广数据已保存")
-        if (res.orders_saved) parts.push(`订单 ${res.order_rows} 行已保存`)
+      const dates = res.processed_dates || []
+      const dateInfo = dates.length > 0 ? `处理日期：${dates.join(", ")}` : ""
+      const detail = []
+      if (res.original_order_rows) {
+        detail.push(`订单 CSV 共 ${res.original_order_rows} 行`)
       }
-      const msg = res.message ? `${res.message}` : `导入成功：${parts.join("，")}`
+      if (res.product_rows !== undefined) {
+        detail.push(`生成商品指标 ${res.product_rows} 行`)
+      }
+      if (res.order_rows !== undefined) {
+        detail.push(`累计订单 ${res.order_rows} 行`)
+      }
+      const msg = `导入成功。${dateInfo}${detail.length ? "；" + detail.join("，") : ""}`
       setMessage(msg)
       setPromoFile(null)
       setOrderFile(null)

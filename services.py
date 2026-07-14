@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 
 from data_loader import read_promotion_file, read_order_file
-from data_processor import match_promotion_and_orders, filter_orders_by_date
+from data_processor import match_promotion_and_orders, filter_orders_by_date, extract_order_dates
 from metrics import (
     compute_product_metrics,
     compute_overall_kpis,
@@ -90,6 +90,66 @@ def delete_store_service(store_id: str) -> bool:
 
 # ---------- 导入 ----------
 
+def _merge_orders(existing: pd.DataFrame, new: pd.DataFrame) -> pd.DataFrame:
+    """按 order_id 合并新旧订单，新数据覆盖旧数据状态。"""
+    if existing.empty or "order_id" not in existing.columns or "order_id" not in new.columns:
+        return new.copy()
+    existing = existing.copy()
+    existing["order_id"] = existing["order_id"].astype(str)
+    new = new.copy()
+    new["order_id"] = new["order_id"].astype(str)
+
+    existing_indexed = existing.set_index("order_id")
+    new_indexed = new.set_index("order_id")
+
+    # 用新数据更新已有订单（相同列）
+    existing_indexed.update(new_indexed)
+
+    # 追加新订单
+    new_only = new_indexed.loc[~new_indexed.index.isin(existing_indexed.index)]
+    combined = pd.concat([existing_indexed.reset_index(), new_only.reset_index()], ignore_index=True)
+    return combined
+
+
+def _compute_and_save_daily(
+    promo_df: pd.DataFrame,
+    order_df: pd.DataFrame,
+    promo_mapping: Dict[str, Optional[str]],
+    order_mapping: Dict[str, Optional[str]],
+    date_str: str,
+    store_name: str,
+    meta: Dict[str, Any],
+) -> Dict[str, Any]:
+    """用推广和订单计算每日指标并保存。"""
+    merged, style_metrics, orders = match_promotion_and_orders(
+        promo_df,
+        order_df,
+        promo_mapping,
+        order_mapping,
+        date=date_str,
+    )
+    merged["store_name"] = store_name
+    style_metrics["store_name"] = store_name
+    orders["store_name"] = store_name
+
+    metrics = compute_product_metrics(merged)
+    save_daily_data(
+        metrics,
+        style_metrics,
+        orders,
+        date=date_str,
+        store_name=store_name,
+        meta=meta,
+    )
+    return {
+        "date": date_str,
+        "product_rows": len(metrics),
+        "style_rows": len(style_metrics),
+        "order_rows": len(orders),
+        "computed": True,
+    }
+
+
 def import_daily_data(
     store_name: str,
     import_date: datetime.date,
@@ -103,6 +163,7 @@ def import_daily_data(
 
     date_str = _date_str(import_date)
     meta = {"promo_file": promo_filename or "", "order_file": order_filename or ""}
+    results: List[Dict[str, Any]] = []
 
     promo_df = pd.DataFrame()
     promo_mapping: Dict[str, Optional[str]] = {}
@@ -111,166 +172,94 @@ def import_daily_data(
         promo_file.name = promo_filename or ""
         promo_df, promo_mapping = read_promotion_file(promo_file)
         save_daily_promo(promo_df, date=date_str, store_name=store_name)
+        results.append({"date": date_str, "promo_saved": True, "orders_saved": False, "computed": False})
+
+        # 若该日已有订单，立即用新推广重算指标
+        try:
+            existing_orders = load_daily_orders(date_str, store_name)
+            if not existing_orders.empty:
+                order_mapping_existing = {}
+                res = _compute_and_save_daily(
+                    promo_df, existing_orders, promo_mapping, order_mapping_existing,
+                    date_str, store_name, meta,
+                )
+                res["promo_saved"] = True
+                res["orders_saved"] = False
+                results.append(res)
+        except FileNotFoundError:
+            pass
 
     order_df = pd.DataFrame()
     order_mapping: Dict[str, Optional[str]] = {}
     original_order_rows = 0
-    filtered_order_rows = 0
     if order_bytes:
         order_file = io.BytesIO(order_bytes)
         order_file.name = order_filename or ""
         order_df, order_mapping = read_order_file(order_file)
-
         original_order_rows = len(order_df)
-        # 订单按实际成交/支付时间拆分，只保留与导入日期匹配的部分
-        order_df = filter_orders_by_date(order_df, date_str)
-        filtered_order_rows = len(order_df)
 
-        # 与该日已有订单合并，按 order_id 更新状态（实现后续退款状态更新）
-        try:
-            existing_orders = load_daily_orders(date_str, store_name)
-        except Exception:
-            existing_orders = pd.DataFrame()
-        if not existing_orders.empty and "order_id" in existing_orders.columns and "order_id" in order_df.columns:
-            existing_orders = existing_orders.copy()
-            existing_orders["order_id"] = existing_orders["order_id"].astype(str)
-            order_df = order_df.copy()
-            order_df["order_id"] = order_df["order_id"].astype(str)
+        # 按订单实际日期拆分，逐日处理
+        order_dates = extract_order_dates(order_df)
+        order_df["_order_date"] = order_dates
+        unique_dates = order_df["_order_date"].dropna().unique()
+        if len(unique_dates) == 0:
+            unique_dates = [date_str]
 
-            existing_indexed = existing_orders.set_index("order_id")
-            new_indexed = order_df.set_index("order_id")
+        for d in sorted(unique_dates):
+            day_orders = order_df[order_df["_order_date"] == d].copy()
+            day_orders = day_orders.drop(columns=["_order_date"])
 
-            # 用新数据更新已有订单（相同列）
-            existing_indexed.update(new_indexed)
+            # 与该日已有订单合并
+            try:
+                existing_orders = load_daily_orders(d, store_name)
+            except Exception:
+                existing_orders = pd.DataFrame()
+            merged_orders = _merge_orders(existing_orders, day_orders)
 
-            # 追加新订单
-            new_only = new_indexed.loc[~new_indexed.index.isin(existing_indexed.index)]
-            combined = pd.concat([existing_indexed.reset_index(), new_only.reset_index()], ignore_index=True)
-            order_df = combined
+            # 尝试用该日已有推广数据计算指标
+            try:
+                existing_promo = load_daily_promo(d, store_name)
+                res = _compute_and_save_daily(
+                    existing_promo, merged_orders, {}, order_mapping,
+                    d, store_name, meta,
+                )
+                res["promo_saved"] = False
+                res["orders_saved"] = True
+                results.append(res)
+            except FileNotFoundError:
+                # 没有推广数据，只保存订单
+                save_daily_data(
+                    pd.DataFrame(), pd.DataFrame(), merged_orders,
+                    date=d, store_name=store_name, meta=meta,
+                )
+                results.append({
+                    "date": d,
+                    "product_rows": 0,
+                    "style_rows": 0,
+                    "order_rows": len(merged_orders),
+                    "promo_saved": False,
+                    "orders_saved": True,
+                    "computed": False,
+                })
 
-    # 判断是否可以计算指标：需要同时有推广和订单
-    has_promo = not promo_df.empty
-    has_orders = not order_df.empty
+    # 汇总结果
+    computed_results = [r for r in results if r.get("computed")]
+    saved_order_results = [r for r in results if r.get("orders_saved") and not r.get("computed")]
+    promo_only_results = [r for r in results if r.get("promo_saved") and not r.get("orders_saved")]
 
-    if has_promo and has_orders:
-        merged, style_metrics, orders = match_promotion_and_orders(
-            promo_df,
-            order_df,
-            promo_mapping,
-            order_mapping,
-            date=date_str,
-        )
-        merged["store_name"] = store_name
-        style_metrics["store_name"] = store_name
-        orders["store_name"] = store_name
+    total_product_rows = sum(r.get("product_rows", 0) for r in computed_results)
+    total_order_rows = sum(r.get("order_rows", 0) for r in computed_results)
+    processed_dates = sorted(set(r.get("date") for r in results if r.get("date")))
 
-        metrics = compute_product_metrics(merged)
-        save_daily_data(
-            metrics,
-            style_metrics,
-            orders,
-            date=date_str,
-            store_name=store_name,
-            meta=meta,
-        )
-        return {
-            "store_name": store_name,
-            "date": date_str,
-            "product_rows": len(metrics),
-            "style_rows": len(style_metrics),
-            "order_rows": len(orders),
-            "original_order_rows": original_order_rows,
-            "filtered_order_rows": filtered_order_rows,
-            "promo_saved": True,
-            "orders_saved": True,
-            "computed": True,
-        }
-
-    if has_orders and not has_promo:
-        # 只上传了订单，尝试用已有推广数据重新计算
-        try:
-            existing_promo = load_daily_promo(date_str, store_name)
-            # 已保存的推广数据列名已经是标准化的，直接复用
-            merged, style_metrics, orders = match_promotion_and_orders(
-                existing_promo,
-                order_df,
-                {},
-                order_mapping,
-                date=date_str,
-            )
-            merged["store_name"] = store_name
-            style_metrics["store_name"] = store_name
-            orders["store_name"] = store_name
-
-            metrics = compute_product_metrics(merged)
-            save_daily_data(
-                metrics,
-                style_metrics,
-                orders,
-                date=date_str,
-                store_name=store_name,
-                meta=meta,
-            )
-            return {
-                "store_name": store_name,
-                "date": date_str,
-                "product_rows": len(metrics),
-                "style_rows": len(style_metrics),
-                "order_rows": len(orders),
-                "original_order_rows": original_order_rows,
-                "filtered_order_rows": filtered_order_rows,
-                "promo_saved": False,
-                "orders_saved": True,
-                "computed": True,
-            }
-        except FileNotFoundError:
-            # 没有推广数据，只保存订单，不计算指标
-            empty_metrics = pd.DataFrame()
-            empty_style = pd.DataFrame()
-            save_daily_data(
-                empty_metrics,
-                empty_style,
-                order_df,
-                date=date_str,
-                store_name=store_name,
-                meta=meta,
-            )
-            return {
-                "store_name": store_name,
-                "date": date_str,
-                "product_rows": 0,
-                "style_rows": 0,
-                "order_rows": len(order_df),
-                "original_order_rows": original_order_rows,
-                "filtered_order_rows": filtered_order_rows,
-                "promo_saved": False,
-                "orders_saved": True,
-                "computed": False,
-                "message": "订单已保存，但尚未上传推广数据，指标暂无法计算",
-            }
-
-    # 只上传了推广数据
-    empty_metrics = pd.DataFrame()
-    empty_style = pd.DataFrame()
-    empty_orders = pd.DataFrame()
-    save_daily_data(
-        empty_metrics,
-        empty_style,
-        empty_orders,
-        date=date_str,
-        store_name=store_name,
-        meta=meta,
-    )
     return {
         "store_name": store_name,
-        "date": date_str,
-        "product_rows": 0,
-        "style_rows": 0,
-        "order_rows": 0,
-        "promo_saved": True,
-        "orders_saved": False,
-        "computed": False,
-        "message": "推广数据已保存，请上传对应日期的订单数据以计算指标",
+        "import_date": date_str,
+        "original_order_rows": original_order_rows,
+        "processed_dates": processed_dates,
+        "product_rows": total_product_rows,
+        "order_rows": total_order_rows,
+        "promo_saved": len(promo_only_results) > 0,
+        "results": results,
     }
 
 
