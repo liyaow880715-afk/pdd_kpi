@@ -260,6 +260,7 @@ def _build_product_id_to_merchant_code(store_name: Optional[str]) -> Dict[str, s
 def apply_costs_to_metrics(metrics: pd.DataFrame, store_name: Optional[str]) -> pd.DataFrame:
     """
     将成本配置合并到商品指标表，并计算链接毛利与盈亏。
+    优先使用全局成本配置，再回退到店铺级成本配置。
     如果指标表里没有 merchant_code，会尝试用 product_id 从历史订单反查。
     """
     if metrics is None or metrics.empty:
@@ -268,9 +269,13 @@ def apply_costs_to_metrics(metrics: pd.DataFrame, store_name: Optional[str]) -> 
     df = metrics.copy()
     config = load_cost_config()
     store = _normalize_store(store_name)
-    costs = config.get("merchant_costs", {}).get(store, {})
 
-    if not costs:
+    # 合并全局成本和店铺成本，全局优先
+    global_costs = load_global_costs(config)
+    store_costs = config.get("merchant_costs", {}).get(store, {})
+    merged_costs = {**store_costs, **global_costs}
+
+    if not merged_costs:
         df["product_cost_unit"] = 0.0
         df["logistics_cost_unit"] = 0.0
         df["total_cost"] = 0.0
@@ -281,7 +286,7 @@ def apply_costs_to_metrics(metrics: pd.DataFrame, store_name: Optional[str]) -> 
 
     cost_df = pd.DataFrame([
         {"merchant_code": code, **info}
-        for code, info in costs.items()
+        for code, info in merged_costs.items()
     ])
 
     # 确保 merchant_code 列为字符串
@@ -292,10 +297,17 @@ def apply_costs_to_metrics(metrics: pd.DataFrame, store_name: Optional[str]) -> 
 
     # 用户手动维护的 product_id -> merchant_code 映射优先（覆盖订单中的编码）
     if "product_id" in df.columns:
-        mapping = load_product_merchant_mapping(config, store)
+        mapping = load_global_product_mapping(config)
         if mapping:
             mapped_codes = df["product_id"].apply(_normalize_product_id).map(mapping)
             df["merchant_code"] = mapped_codes.fillna(df["merchant_code"])
+        # 兼容旧店铺级映射
+        store_mapping = load_product_merchant_mapping(config, store)
+        if store_mapping:
+            blank = df["merchant_code"].replace("", pd.NA).isna()
+            if blank.any():
+                mapped_codes = df.loc[blank, "product_id"].apply(_normalize_product_id).map(store_mapping)
+                df.loc[blank, "merchant_code"] = mapped_codes
 
     # 旧数据回退：用 product_id 从历史订单反查商家编码
     merchant_codes_blank = df["merchant_code"].replace("", pd.NA).isna()
@@ -463,3 +475,170 @@ def import_costs_from_csv(store_name: Optional[str], file_obj) -> int:
     if count:
         save_cost_config(cfg)
     return count
+
+
+# ==================== 全局成本管理（不区分店铺） ====================
+
+GLOBAL_COSTS_KEY = "global_merchant_costs"
+GLOBAL_PRODUCT_MAP_KEY = "global_product_merchant_map"
+
+
+def load_global_costs(config: Optional[Dict] = None) -> Dict[str, Dict]:
+    """加载全局商家编码成本配置"""
+    cfg = config or load_cost_config()
+    return cfg.get(GLOBAL_COSTS_KEY, {})
+
+
+def save_global_cost(
+    config: Dict,
+    merchant_code: str,
+    product_name: str = "",
+    product_cost: float = 0.0,
+    logistics_cost: float = 0.0,
+) -> Dict:
+    """保存全局商家编码成本"""
+    code = _normalize_code(merchant_code)
+    if not code:
+        return config
+    if GLOBAL_COSTS_KEY not in config:
+        config[GLOBAL_COSTS_KEY] = {}
+    config[GLOBAL_COSTS_KEY][code] = {
+        "product_name": str(product_name or "").strip(),
+        "product_cost": float(product_cost or 0),
+        "logistics_cost": float(logistics_cost or 0),
+        "updated_at": datetime.now().isoformat(),
+    }
+    return config
+
+
+def delete_global_cost(config: Dict, merchant_code: str) -> Dict:
+    """删除全局商家编码成本"""
+    code = _normalize_code(merchant_code)
+    config.get(GLOBAL_COSTS_KEY, {}).pop(code, None)
+    return config
+
+
+def list_global_cost_rows(config: Optional[Dict] = None) -> List[Dict]:
+    """列出全局成本配置行"""
+    costs = load_global_costs(config)
+    return [{"merchant_code": code, **info} for code, info in costs.items()]
+
+
+def load_global_product_mapping(config: Optional[Dict] = None) -> Dict[str, str]:
+    """加载全局 product_id -> merchant_code 映射"""
+    cfg = config or load_cost_config()
+    return cfg.get(GLOBAL_PRODUCT_MAP_KEY, {})
+
+
+def save_global_product_mapping(config: Dict, product_id, merchant_code: str) -> Dict:
+    """保存全局 product_id -> merchant_code 映射"""
+    pid = _normalize_product_id(product_id)
+    code = _normalize_code(merchant_code)
+    if pid and code:
+        if GLOBAL_PRODUCT_MAP_KEY not in config:
+            config[GLOBAL_PRODUCT_MAP_KEY] = {}
+        config[GLOBAL_PRODUCT_MAP_KEY][pid] = code
+    return config
+
+
+def delete_global_product_mapping(config: Dict, product_id) -> Dict:
+    """删除全局 product_id -> merchant_code 映射"""
+    pid = _normalize_product_id(product_id)
+    if pid:
+        config.get(GLOBAL_PRODUCT_MAP_KEY, {}).pop(pid, None)
+    return config
+
+
+def get_all_merchant_codes() -> pd.DataFrame:
+    """
+    从所有店铺的历史订单中提取所有商家编码并去重。
+    返回 DataFrame：merchant_code
+    """
+    from storage import list_available_stores
+    codes = set()
+    stores = list_available_stores() or []
+    for store in stores:
+        df = extract_merchant_codes_from_orders(store)
+        if not df.empty:
+            codes.update(df["merchant_code"].astype(str).tolist())
+    # 也包含手动映射中的商家编码
+    config = load_cost_config()
+    mapping = load_global_product_mapping(config)
+    codes.update(str(v) for v in mapping.values() if v)
+    global_costs = load_global_costs(config)
+    codes.update(str(k) for k in global_costs.keys() if k)
+
+    if not codes:
+        return pd.DataFrame(columns=["merchant_code"])
+    return pd.DataFrame(sorted(codes), columns=["merchant_code"])
+
+
+def get_products_without_merchant_code() -> pd.DataFrame:
+    """
+    找出历史订单中出现、但还没有商家编码的商品。
+    返回 DataFrame 包含 product_id, product_name, store_name, order_count 等。
+    """
+    from storage import list_available_stores, list_available_dates, load_daily_orders
+    stores = list_available_stores() or []
+    global_mapping = load_global_product_mapping()
+    rows = []
+
+    for store in stores:
+        dates = list_available_dates(store)
+        for d in dates:
+            try:
+                orders = load_daily_orders(d, store)
+                if orders.empty:
+                    continue
+                code_col = _find_merchant_code_column(orders)
+                if "product_id" not in orders.columns:
+                    continue
+                for _, r in orders.iterrows():
+                    pid = _normalize_product_id(r.get("product_id"))
+                    pname = str(r.get("product_name", "") or "").strip()
+                    if not pid:
+                        continue
+                    # 已有全局映射的跳过
+                    if pid in global_mapping:
+                        continue
+                    # 已有商家编码的跳过
+                    if code_col and _normalize_code(r.get(code_col)):
+                        continue
+                    rows.append({
+                        "product_id": pid,
+                        "product_name": pname,
+                        "store_name": store,
+                        "date": d,
+                    })
+            except Exception:
+                continue
+
+    if not rows:
+        return pd.DataFrame(columns=["product_id", "product_name", "store_name", "order_count"])
+
+    df = pd.DataFrame(rows)
+    agg = df.groupby(["product_id", "product_name", "store_name"], as_index=False).agg(
+        order_count=("date", "count"),
+        first_date=("date", "min"),
+    )
+    return agg.sort_values(["order_count", "product_id"], ascending=[False, True])
+
+
+def refresh_global_cost_codes() -> Dict[str, int]:
+    """
+    刷新全局商家编码：把订单中出现、但成本配置里还不存在的编码追加进去。
+    返回 {added: 新增数量}
+    """
+    config = load_cost_config()
+    existing = load_global_costs(config)
+    detected = get_all_merchant_codes()
+    added = 0
+    for code in detected["merchant_code"].astype(str).tolist():
+        code = _normalize_code(code)
+        if not code or code in existing:
+            continue
+        config = save_global_cost(config, code)
+        added += 1
+    if added:
+        save_cost_config(config)
+    return {"added": added}

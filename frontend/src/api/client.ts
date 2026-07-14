@@ -169,6 +169,31 @@ export async function refreshCostCodes(storeName: string) {
   return res.data
 }
 
+export async function getGlobalCosts() {
+  const res = await api.get<Cost[]>("/costs/global")
+  return res.data
+}
+
+export async function saveGlobalCosts(costs: Cost[]) {
+  const res = await api.post("/costs/global", { costs })
+  return res.data
+}
+
+export async function refreshGlobalCostCodes() {
+  const res = await api.post("/costs/global/refresh")
+  return res.data
+}
+
+export async function getUnmappedProducts() {
+  const res = await api.get("/costs/global/unmapped")
+  return res.data
+}
+
+export async function mapProductToMerchantCode(productId: string, merchantCode: string) {
+  const res = await api.post("/costs/global/map", { product_id: productId, merchant_code: merchantCode })
+  return res.data
+}
+
 export async function getAiConfig() {
   const res = await api.get("/ai/config")
   return res.data

@@ -271,6 +271,53 @@ def import_cost_csv(store_name: str, file_bytes: bytes) -> Dict[str, Any]:
     return {"updated": count}
 
 
+# ---------- 全局成本（不区分店铺） ----------
+
+def get_global_costs() -> List[Dict[str, Any]]:
+    rows = []
+    for rec in list_global_cost_rows():
+        rows.append({
+            "merchant_code": rec["merchant_code"],
+            "product_name": rec.get("product_name", ""),
+            "product_cost": float(rec.get("product_cost", 0) or 0),
+            "logistics_cost": float(rec.get("logistics_cost", 0) or 0),
+        })
+    return rows
+
+
+def save_global_costs(costs: List[Dict[str, Any]]) -> Dict[str, Any]:
+    cfg = load_cost_config()
+    for rec in costs:
+        code = str(rec.get("merchant_code", "")).strip()
+        if not code:
+            continue
+        cfg = save_global_cost(
+            cfg,
+            merchant_code=code,
+            product_name=rec.get("product_name", ""),
+            product_cost=rec.get("product_cost", 0),
+            logistics_cost=rec.get("logistics_cost", 0),
+        )
+    save_cost_config(cfg)
+    return {"saved": len(costs)}
+
+
+def refresh_global_cost_codes_service() -> Dict[str, Any]:
+    return refresh_global_cost_codes()
+
+
+def get_unmapped_products() -> List[Dict[str, Any]]:
+    df = get_products_without_merchant_code()
+    return _df_to_records(df)
+
+
+def save_global_product_mapping_service(product_id: str, merchant_code: str) -> Dict[str, Any]:
+    cfg = load_cost_config()
+    cfg = save_global_product_mapping(cfg, product_id, merchant_code)
+    save_cost_config(cfg)
+    return {"product_id": product_id, "merchant_code": merchant_code}
+
+
 # ---------- AI ----------
 
 def get_ai_config() -> Dict[str, Any]:
