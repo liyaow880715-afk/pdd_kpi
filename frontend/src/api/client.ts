@@ -1,12 +1,24 @@
 import axios from "axios"
+import { getToken, logout } from "./auth"
 
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "/api",
 })
 
+api.interceptors.request.use((config) => {
+  const token = getToken()
+  if (token && config.headers) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
 api.interceptors.response.use(
   (res) => res,
   (err) => {
+    if (err.response?.status === 401) {
+      logout()
+    }
     const msg = err.response?.data?.detail || err.message || "请求失败"
     return Promise.reject(new Error(msg))
   }

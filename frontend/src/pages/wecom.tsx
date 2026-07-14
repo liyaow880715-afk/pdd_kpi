@@ -50,7 +50,7 @@ export function WecomPage() {
           <CardTitle>机器人配置</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Bot ID</Label>
               <Input value={config.bot_id || ""} onChange={(e) => updateConfig("bot_id", e.target.value)} />

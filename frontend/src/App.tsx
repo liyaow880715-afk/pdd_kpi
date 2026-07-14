@@ -1,5 +1,12 @@
+import { useState } from "react"
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom"
-import { LayoutDashboard, Store, Upload, BarChart3, ShoppingCart, Coins, Bot, MessageCircle } from "lucide-react"
+import { LayoutDashboard, Store, Upload, BarChart3, ShoppingCart, Coins, Bot, MessageCircle, Menu, X, LogOut } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { ThemeToggle } from "@/components/theme-toggle"
+import { AuthGuard } from "@/components/auth-guard"
+import { logout } from "@/api/auth"
+import { LoginPage } from "@/pages/login"
+import { DashboardPage } from "@/pages/dashboard"
 import { StoresPage } from "@/pages/stores"
 import { ImportPage } from "@/pages/import"
 import { MetricsPage } from "@/pages/metrics"
@@ -19,18 +26,26 @@ const navItems = [
   { to: "/wecom", label: "企微", icon: MessageCircle },
 ]
 
-function Sidebar() {
+function Sidebar({ onClose }: { onClose?: () => void }) {
   return (
     <aside className="w-64 border-r bg-card min-h-screen p-4 flex flex-col">
-      <div className="mb-8 px-2">
-        <h1 className="text-xl font-bold tracking-tight">PDD BI Dashboard</h1>
-        <p className="text-xs text-muted-foreground mt-1">拼多多推广数据看板</p>
+      <div className="mb-8 px-2 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight">PDD BI</h1>
+          <p className="text-xs text-muted-foreground mt-1">推广数据看板</p>
+        </div>
+        {onClose && (
+          <Button variant="ghost" size="icon" onClick={onClose} className="md:hidden">
+            <X className="h-4 w-4" />
+          </Button>
+        )}
       </div>
       <nav className="space-y-1">
         {navItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
+            onClick={onClose}
             className={({ isActive }) =>
               `flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                 isActive
@@ -44,27 +59,44 @@ function Sidebar() {
           </NavLink>
         ))}
       </nav>
+      <div className="mt-auto pt-4 border-t flex items-center justify-between">
+        <ThemeToggle />
+        <Button variant="ghost" size="icon" onClick={logout}>
+          <LogOut className="h-4 w-4 text-muted-foreground" />
+        </Button>
+      </div>
     </aside>
   )
 }
 
-function Dashboard() {
-  return (
-    <div className="space-y-4">
-      <h2 className="text-2xl font-bold">总览</h2>
-      <p className="text-muted-foreground">欢迎使用 PDD BI Dashboard。请从左侧菜单选择功能。</p>
-    </div>
-  )
-}
 
-function App() {
+
+function Layout() {
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+
   return (
-    <BrowserRouter>
-      <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen bg-background">
+      <div className="hidden md:block">
         <Sidebar />
-        <main className="flex-1 p-6 overflow-auto">
+      </div>
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-50 flex md:hidden">
+          <div className="w-64">
+            <Sidebar onClose={() => setSidebarOpen(false)} />
+          </div>
+          <div className="flex-1 bg-black/50" onClick={() => setSidebarOpen(false)} />
+        </div>
+      )}
+      <main className="flex-1 flex flex-col min-h-screen overflow-hidden">
+        <header className="md:hidden border-b p-4 flex items-center justify-between bg-card">
+          <span className="font-bold">PDD BI</span>
+          <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}>
+            <Menu className="h-5 w-5" />
+          </Button>
+        </header>
+        <div className="flex-1 p-4 md:p-6 overflow-auto">
           <Routes>
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/" element={<DashboardPage />} />
             <Route path="/stores" element={<StoresPage />} />
             <Route path="/import" element={<ImportPage />} />
             <Route path="/metrics" element={<MetricsPage />} />
@@ -73,8 +105,26 @@ function App() {
             <Route path="/ai" element={<AiPage />} />
             <Route path="/wecom" element={<WecomPage />} />
           </Routes>
-        </main>
-      </div>
+        </div>
+      </main>
+    </div>
+  )
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="/*"
+          element={
+            <AuthGuard>
+              <Layout />
+            </AuthGuard>
+          }
+        />
+      </Routes>
     </BrowserRouter>
   )
 }

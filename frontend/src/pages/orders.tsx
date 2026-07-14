@@ -39,7 +39,7 @@ export function OrdersPage() {
       <h2 className="text-2xl font-bold">订单明细</h2>
       <Card>
         <CardContent className="pt-6">
-          <div className="grid grid-cols-3 gap-4 items-end">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
             <div className="space-y-2">
               <Label>店铺</Label>
               <Select value={storeName} onChange={(e) => setStoreName(e.target.value)}>

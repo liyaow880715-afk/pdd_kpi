@@ -11,7 +11,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from routers import stores, imports, orders, metrics, costs, ai, wecom, exports
+from routers import stores, imports, orders, metrics, costs, ai, wecom, exports, auth
+from auth import auth_middleware, is_public_path
 
 
 @asynccontextmanager
@@ -42,6 +43,11 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def http_auth_middleware(request: Request, call_next):
+    return await auth_middleware(request, call_next)
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
@@ -50,6 +56,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
+app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(stores.router, prefix="/api/stores", tags=["stores"])
 app.include_router(imports.router, prefix="/api/imports", tags=["imports"])
 app.include_router(orders.router, prefix="/api/orders", tags=["orders"])

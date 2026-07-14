@@ -79,7 +79,7 @@ export function AiPage() {
               <CardTitle>API 配置</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>API Key</Label>
                   <Input value={config.api_key || ""} onChange={(e) => updateConfig("api_key", e.target.value)} placeholder="sk-..." />
@@ -114,7 +114,7 @@ export function AiPage() {
               <CardTitle>生成 AI 报告</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-4 gap-4 items-end">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
                 <div className="space-y-2">
                   <Label>店铺</Label>
                   <Select value={storeName} onChange={(e) => setStoreName(e.target.value)}>

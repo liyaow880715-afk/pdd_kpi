@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label"
 import { Select } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { getStores, getAnalysis, type Store } from "@/api/client"
+import { TrendChart } from "@/components/trend-chart"
+import { getStores, getAnalysis, getTrend, type Store } from "@/api/client"
 
 function formatNumber(v: any) {
   if (v === null || v === undefined || Number.isNaN(v)) return "-"
@@ -21,6 +22,7 @@ export function MetricsPage() {
   const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0])
   const [endDate, setEndDate] = useState(new Date().toISOString().split("T")[0])
   const [data, setData] = useState<any>(null)
+  const [trend, setTrend] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -31,8 +33,12 @@ export function MetricsPage() {
     if (!storeName) return
     setLoading(true)
     try {
-      const res = await getAnalysis(storeName, startDate, endDate)
-      setData(res)
+      const [analysis, trendData] = await Promise.all([
+        getAnalysis(storeName, startDate, endDate),
+        getTrend([storeName], startDate, endDate),
+      ])
+      setData(analysis)
+      setTrend(trendData)
     } catch (err: any) {
       alert(err.message)
     } finally {
@@ -47,7 +53,7 @@ export function MetricsPage() {
       <h2 className="text-2xl font-bold">指标分析</h2>
       <Card>
         <CardContent className="pt-6">
-          <div className="grid grid-cols-4 gap-4 items-end">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
             <div className="space-y-2">
               <Label>店铺</Label>
               <Select value={storeName} onChange={(e) => setStoreName(e.target.value)}>
@@ -76,7 +82,16 @@ export function MetricsPage() {
 
       {data && (
         <>
-          <div className="grid grid-cols-4 gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>趋势图</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <TrendChart data={trend} />
+            </CardContent>
+          </Card>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
               { label: "推广花费", key: "promo_spend" },
               { label: "推广 GMV", key: "promo_gmv" },
