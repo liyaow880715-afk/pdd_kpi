@@ -42,6 +42,7 @@ from storage import (
     load_daily_orders,
     save_daily_promo,
     load_daily_promo,
+    remove_order_ids_from_store,
     list_available_stores,
     list_available_dates,
     list_store_records,
@@ -198,6 +199,14 @@ def import_daily_data(
         order_df, order_mapping = read_order_file(order_file)
         original_order_rows = len(order_df)
 
+        # 先把本次所有订单的 order_id 从历史所有日期中移除，
+        # 防止同一订单因日期修正而残留在旧日期文件里
+        cleaned_dates: List[str] = []
+        if "order_id" in order_df.columns and not order_df.empty:
+            cleaned_dates = remove_order_ids_from_store(
+                store_name, order_df["order_id"].astype(str).unique().tolist()
+            )
+
         # 按订单实际日期拆分，逐日处理
         order_dates = extract_order_dates(order_df)
         order_df["_order_date"] = order_dates
@@ -205,7 +214,10 @@ def import_daily_data(
         if len(unique_dates) == 0:
             unique_dates = [date_str]
 
+        new_dates: List[str] = []
         for d in sorted(unique_dates):
+            d = str(d)
+            new_dates.append(d)
             day_orders = order_df[order_df["_order_date"] == d].copy()
             day_orders = day_orders.drop(columns=["_order_date"])
 
@@ -237,6 +249,38 @@ def import_daily_data(
                     "product_rows": 0,
                     "style_rows": 0,
                     "order_rows": len(merged_orders),
+                    "promo_saved": False,
+                    "orders_saved": True,
+                    "computed": False,
+                })
+
+        # 对仅被清理出旧订单的日期，用剩余订单重新计算指标（如有推广则联用）
+        for d in sorted(set(cleaned_dates) - set(new_dates)):
+            try:
+                remaining_orders = load_daily_orders(d, store_name)
+            except Exception:
+                continue
+            if remaining_orders.empty:
+                continue
+            try:
+                existing_promo = load_daily_promo(d, store_name)
+                res = _compute_and_save_daily(
+                    existing_promo, remaining_orders, {}, {},
+                    d, store_name, meta,
+                )
+                res["promo_saved"] = False
+                res["orders_saved"] = True
+                results.append(res)
+            except FileNotFoundError:
+                save_daily_data(
+                    pd.DataFrame(), pd.DataFrame(), remaining_orders,
+                    date=d, store_name=store_name, meta=meta,
+                )
+                results.append({
+                    "date": d,
+                    "product_rows": 0,
+                    "style_rows": 0,
+                    "order_rows": len(remaining_orders),
                     "promo_saved": False,
                     "orders_saved": True,
                     "computed": False,

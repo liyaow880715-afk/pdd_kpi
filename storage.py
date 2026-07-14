@@ -269,6 +269,53 @@ def delete_daily_data(store_name: Optional[str], date):
             pass
 
 
+def remove_order_ids_from_store(store_name: Optional[str], order_ids: List[str]) -> List[str]:
+    """从某店铺所有日期的订单文件中移除指定 order_id，并返回受影响的日期列表"""
+    init_storage()
+    store_str = _store_to_str(store_name)
+    target_ids = set(str(o) for o in order_ids)
+    affected_dates: List[str] = []
+
+    for path in PROCESSED_DIR.glob(f"orders_{store_str}_*"):
+        if path.suffix not in (".parquet", ".csv"):
+            continue
+        # 从文件名提取日期：orders_{store}_{date}.parquet
+        try:
+            date_str = path.stem.split(f"orders_{store_str}_", 1)[1]
+        except Exception:
+            continue
+        try:
+            df = pd.read_parquet(path) if path.suffix == ".parquet" else pd.read_csv(path)
+        except Exception:
+            continue
+        if df.empty or "order_id" not in df.columns:
+            continue
+        df["order_id"] = df["order_id"].astype(str)
+        before = len(df)
+        df = df[~df["order_id"].isin(target_ids)].copy()
+        if len(df) == before:
+            continue
+        affected_dates.append(date_str)
+        try:
+            if path.suffix == ".parquet":
+                df.to_parquet(path, index=False)
+            else:
+                df.to_csv(path, index=False, encoding="utf-8-sig")
+        except Exception:
+            continue
+        # 同步更新 meta 中的 order_rows
+        if META_FILE.exists():
+            try:
+                meta = json.loads(META_FILE.read_text(encoding="utf-8"))
+                record_key = _record_key(store_str, date_str)
+                if record_key in meta.get("records", {}):
+                    meta["records"][record_key]["order_rows"] = len(df)
+                    META_FILE.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+            except Exception:
+                pass
+    return sorted(affected_dates)
+
+
 def load_all_product_history(store_names: Optional[List[str]] = None) -> pd.DataFrame:
     """加载所有历史商品级数据用于趋势分析"""
     dates = list_available_dates()
