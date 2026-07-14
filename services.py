@@ -239,15 +239,19 @@ def import_daily_data(
                 res["orders_saved"] = True
                 results.append(res)
             except FileNotFoundError:
-                # 没有推广数据，只保存订单
+                # 没有推广数据，只保存订单；保留已有商品/样式指标不被覆盖
+                try:
+                    existing_product, existing_style = load_daily_data(d, store_name)
+                except Exception:
+                    existing_product, existing_style = pd.DataFrame(), pd.DataFrame()
                 save_daily_data(
-                    pd.DataFrame(), pd.DataFrame(), merged_orders,
+                    existing_product, existing_style, merged_orders,
                     date=d, store_name=store_name, meta=meta,
                 )
                 results.append({
                     "date": d,
-                    "product_rows": 0,
-                    "style_rows": 0,
+                    "product_rows": len(existing_product),
+                    "style_rows": len(existing_style),
                     "order_rows": len(merged_orders),
                     "promo_saved": False,
                     "orders_saved": True,
@@ -272,14 +276,19 @@ def import_daily_data(
                 res["orders_saved"] = True
                 results.append(res)
             except FileNotFoundError:
+                # 没有推广数据，只保存订单；保留已有商品/样式指标不被覆盖
+                try:
+                    existing_product, existing_style = load_daily_data(d, store_name)
+                except Exception:
+                    existing_product, existing_style = pd.DataFrame(), pd.DataFrame()
                 save_daily_data(
-                    pd.DataFrame(), pd.DataFrame(), remaining_orders,
+                    existing_product, existing_style, remaining_orders,
                     date=d, store_name=store_name, meta=meta,
                 )
                 results.append({
                     "date": d,
-                    "product_rows": 0,
-                    "style_rows": 0,
+                    "product_rows": len(existing_product),
+                    "style_rows": len(existing_style),
                     "order_rows": len(remaining_orders),
                     "promo_saved": False,
                     "orders_saved": True,
