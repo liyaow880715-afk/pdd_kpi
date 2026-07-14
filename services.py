@@ -319,11 +319,11 @@ def get_unmapped_products() -> List[Dict[str, Any]]:
     return _df_to_records(df)
 
 
-def save_global_product_mapping_service(product_id: str, merchant_code: str) -> Dict[str, Any]:
+def save_global_product_mapping_service(product_id: str, merchant_code: str, style_id: Optional[str] = None) -> Dict[str, Any]:
     cfg = load_cost_config()
-    cfg = save_global_product_mapping(cfg, product_id, merchant_code)
+    cfg = save_global_product_mapping(cfg, product_id, merchant_code, style_id=style_id)
     save_cost_config(cfg)
-    return {"product_id": product_id, "merchant_code": merchant_code}
+    return {"product_id": product_id, "style_id": style_id, "merchant_code": merchant_code}
 
 
 # ---------- AI ----------

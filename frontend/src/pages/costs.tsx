@@ -14,9 +14,19 @@ import {
   type Cost,
 } from "@/api/client"
 
+interface UnmappedRow {
+  product_id: string
+  product_name: string
+  style_id: string
+  style_name: string
+  store_name: string
+  order_count: number
+  first_date: string
+}
+
 export function CostsPage() {
   const [costs, setCosts] = useState<Cost[]>([])
-  const [unmapped, setUnmapped] = useState<any[]>([])
+  const [unmapped, setUnmapped] = useState<UnmappedRow[]>([])
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState("")
   const [mappingCodes, setMappingCodes] = useState<Record<string, string>>({})
@@ -63,12 +73,15 @@ export function CostsPage() {
     }
   }
 
-  const handleMap = async (productId: string) => {
-    const merchantCode = mappingCodes[productId]
+  const mappingKey = (row: UnmappedRow) => `${row.product_id}::${row.style_id}`
+
+  const handleMap = async (row: UnmappedRow) => {
+    const key = mappingKey(row)
+    const merchantCode = mappingCodes[key]
     if (!merchantCode) return
     try {
-      await mapProductToMerchantCode(productId, merchantCode)
-      setMappingCodes((prev) => ({ ...prev, [productId]: "" }))
+      await mapProductToMerchantCode(row.product_id, merchantCode, row.style_id === "-" ? undefined : row.style_id)
+      setMappingCodes((prev) => ({ ...prev, [key]: "" }))
       await fetchData()
       setMessage("映射成功")
     } catch (err: any) {
@@ -159,6 +172,8 @@ export function CostsPage() {
                   <TableRow>
                     <TableHead>商品ID</TableHead>
                     <TableHead>商品名称</TableHead>
+                    <TableHead>样式ID</TableHead>
+                    <TableHead>样式/规格</TableHead>
                     <TableHead>出现店铺</TableHead>
                     <TableHead>订单天数</TableHead>
                     <TableHead>映射到商家编码</TableHead>
@@ -166,40 +181,45 @@ export function CostsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {unmapped.map((row: any) => (
-                    <TableRow key={row.product_id}>
-                      <TableCell className="font-mono text-xs">{row.product_id}</TableCell>
-                      <TableCell>{row.product_name}</TableCell>
-                      <TableCell>{row.store_name}</TableCell>
-                      <TableCell>{row.order_count}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Select
-                            value={mappingCodes[row.product_id] || ""}
-                            onChange={(e) => setMappingCodes((prev) => ({ ...prev, [row.product_id]: e.target.value }))}
-                          >
-                            <option value="">选择或输入</option>
-                            {costs.map((c) => (
-                              <option key={c.merchant_code} value={c.merchant_code}>
-                                {c.merchant_code} {c.product_name ? `(${c.product_name})` : ""}
-                              </option>
-                            ))}
-                          </Select>
-                          <Input
-                            placeholder="新编码"
-                            className="w-24"
-                            value={mappingCodes[row.product_id] || ""}
-                            onChange={(e) => setMappingCodes((prev) => ({ ...prev, [row.product_id]: e.target.value }))}
-                          />
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button size="sm" onClick={() => handleMap(row.product_id)} disabled={!mappingCodes[row.product_id]}>
-                          <Link2 className="h-4 w-4 mr-1" /> 映射
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {unmapped.map((row) => {
+                    const key = mappingKey(row)
+                    return (
+                      <TableRow key={key}>
+                        <TableCell className="font-mono text-xs">{row.product_id}</TableCell>
+                        <TableCell>{row.product_name}</TableCell>
+                        <TableCell className="font-mono text-xs">{row.style_id}</TableCell>
+                        <TableCell>{row.style_name}</TableCell>
+                        <TableCell>{row.store_name}</TableCell>
+                        <TableCell>{row.order_count}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Select
+                              value={mappingCodes[key] || ""}
+                              onChange={(e) => setMappingCodes((prev) => ({ ...prev, [key]: e.target.value }))}
+                            >
+                              <option value="">选择或输入</option>
+                              {costs.map((c) => (
+                                <option key={c.merchant_code} value={c.merchant_code}>
+                                  {c.merchant_code} {c.product_name ? `(${c.product_name})` : ""}
+                                </option>
+                              ))}
+                            </Select>
+                            <Input
+                              placeholder="新编码"
+                              className="w-24"
+                              value={mappingCodes[key] || ""}
+                              onChange={(e) => setMappingCodes((prev) => ({ ...prev, [key]: e.target.value }))}
+                            />
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button size="sm" onClick={() => handleMap(row)} disabled={!mappingCodes[key]}>
+                            <Link2 className="h-4 w-4 mr-1" /> 映射
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>

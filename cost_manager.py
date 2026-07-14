@@ -295,12 +295,23 @@ def apply_costs_to_metrics(metrics: pd.DataFrame, store_name: Optional[str]) -> 
     else:
         df["merchant_code"] = ""
 
-    # 用户手动维护的 product_id -> merchant_code 映射优先（覆盖订单中的编码）
+    # 用户手动维护的映射优先（覆盖订单中的编码）：规格 > 商品 > 店铺级
     if "product_id" in df.columns:
-        mapping = load_global_product_mapping(config)
-        if mapping:
-            mapped_codes = df["product_id"].apply(_normalize_product_id).map(mapping)
-            df["merchant_code"] = mapped_codes.fillna(df["merchant_code"])
+        style_id_col = None
+        for col in df.columns:
+            if str(col).lower() in ("style_id", "样式id", "款式id"):
+                style_id_col = col
+                break
+        if style_id_col:
+            df["merchant_code"] = df.apply(
+                lambda r: lookup_global_merchant_code(r["product_id"], r.get(style_id_col), config) or r["merchant_code"],
+                axis=1,
+            )
+        else:
+            df["merchant_code"] = df.apply(
+                lambda r: lookup_global_merchant_code(r["product_id"], None, config) or r["merchant_code"],
+                axis=1,
+            )
         # 兼容旧店铺级映射
         store_mapping = load_product_merchant_mapping(config, store)
         if store_mapping:
@@ -481,6 +492,20 @@ def import_costs_from_csv(store_name: Optional[str], file_obj) -> int:
 
 GLOBAL_COSTS_KEY = "global_merchant_costs"
 GLOBAL_PRODUCT_MAP_KEY = "global_product_merchant_map"
+GLOBAL_STYLE_MAP_KEY = "global_style_merchant_map"
+
+
+def _normalize_style_id(sid) -> str:
+    if pd.isna(sid):
+        return ""
+    s = str(sid).strip()
+    if s.endswith(".0"):
+        s = s[:-2]
+    return s
+
+
+def _style_map_key(product_id, style_id) -> str:
+    return f"{_normalize_product_id(product_id)}::{_normalize_style_id(style_id)}"
 
 
 def load_global_costs(config: Optional[Dict] = None) -> Dict[str, Dict]:
@@ -530,23 +555,51 @@ def load_global_product_mapping(config: Optional[Dict] = None) -> Dict[str, str]
     return cfg.get(GLOBAL_PRODUCT_MAP_KEY, {})
 
 
-def save_global_product_mapping(config: Dict, product_id, merchant_code: str) -> Dict:
-    """保存全局 product_id -> merchant_code 映射"""
+def save_global_product_mapping(
+    config: Dict,
+    product_id,
+    merchant_code: str,
+    style_id=None,
+) -> Dict:
+    """保存全局 product_id / style_id -> merchant_code 映射"""
     pid = _normalize_product_id(product_id)
+    sid = _normalize_style_id(style_id)
     code = _normalize_code(merchant_code)
-    if pid and code:
+    if not code or not pid:
+        return config
+
+    if sid:
+        if GLOBAL_STYLE_MAP_KEY not in config:
+            config[GLOBAL_STYLE_MAP_KEY] = {}
+        config[GLOBAL_STYLE_MAP_KEY][_style_map_key(pid, sid)] = code
+    else:
         if GLOBAL_PRODUCT_MAP_KEY not in config:
             config[GLOBAL_PRODUCT_MAP_KEY] = {}
         config[GLOBAL_PRODUCT_MAP_KEY][pid] = code
     return config
 
 
-def delete_global_product_mapping(config: Dict, product_id) -> Dict:
-    """删除全局 product_id -> merchant_code 映射"""
+def delete_global_product_mapping(config: Dict, product_id, style_id=None) -> Dict:
+    """删除全局 product_id / style_id -> merchant_code 映射"""
     pid = _normalize_product_id(product_id)
+    sid = _normalize_style_id(style_id)
     if pid:
         config.get(GLOBAL_PRODUCT_MAP_KEY, {}).pop(pid, None)
+    if pid and sid:
+        config.get(GLOBAL_STYLE_MAP_KEY, {}).pop(_style_map_key(pid, sid), None)
     return config
+
+
+def lookup_global_merchant_code(product_id, style_id=None, config: Optional[Dict] = None) -> str:
+    """按 style_id 优先、product_id 次之查找映射的商家编码"""
+    cfg = config or load_cost_config()
+    pid = _normalize_product_id(product_id)
+    sid = _normalize_style_id(style_id)
+    if sid:
+        style_code = cfg.get(GLOBAL_STYLE_MAP_KEY, {}).get(_style_map_key(pid, sid))
+        if style_code:
+            return style_code
+    return cfg.get(GLOBAL_PRODUCT_MAP_KEY, {}).get(pid, "")
 
 
 def get_all_merchant_codes() -> pd.DataFrame:
@@ -573,14 +626,28 @@ def get_all_merchant_codes() -> pd.DataFrame:
     return pd.DataFrame(sorted(codes), columns=["merchant_code"])
 
 
+def _find_style_columns(orders: pd.DataFrame) -> Dict[str, Optional[str]]:
+    """找出样式相关列，返回 {style_id_col, style_name_col, spec_col}"""
+    result = {"style_id_col": None, "style_name_col": None, "spec_col": None}
+    cols = [str(c).strip() for c in orders.columns]
+    for col in cols:
+        if col.lower() in ("style_id", "样式id", "款式id", "styleid"):
+            result["style_id_col"] = col
+        if col in ("style_name", "样式名称", "款式名称", "商品规格"):
+            result["style_name_col"] = col
+        if col in ("商品规格", "规格", "sku", "specification"):
+            result["spec_col"] = col
+    return result
+
+
 def get_products_without_merchant_code() -> pd.DataFrame:
     """
-    找出历史订单中出现、但还没有商家编码的商品。
-    返回 DataFrame 包含 product_id, product_name, store_name, order_count 等。
+    找出历史订单中出现、但还没有商家编码的商品（按商品规格区分）。
+    返回 DataFrame 包含 product_id, product_name, style_id, style_name, store_name, order_count 等。
     """
     from storage import list_available_stores, list_available_dates, load_daily_orders
     stores = list_available_stores() or []
-    global_mapping = load_global_product_mapping()
+    config = load_cost_config()
     rows = []
 
     for store in stores:
@@ -591,22 +658,27 @@ def get_products_without_merchant_code() -> pd.DataFrame:
                 if orders.empty:
                     continue
                 code_col = _find_merchant_code_column(orders)
+                style_cols = _find_style_columns(orders)
                 if "product_id" not in orders.columns:
                     continue
                 for _, r in orders.iterrows():
                     pid = _normalize_product_id(r.get("product_id"))
                     pname = str(r.get("product_name", "") or "").strip()
+                    sid = _normalize_style_id(r.get(style_cols.get("style_id_col") or "style_id"))
+                    sname = str(r.get(style_cols.get("style_name_col") or "style_name") or r.get(style_cols.get("spec_col")) or "").strip()
                     if not pid:
-                        continue
-                    # 已有全局映射的跳过
-                    if pid in global_mapping:
                         continue
                     # 已有商家编码的跳过
                     if code_col and _normalize_code(r.get(code_col)):
                         continue
+                    # 已有全局映射的跳过（按规格或按商品）
+                    if lookup_global_merchant_code(pid, sid, config):
+                        continue
                     rows.append({
                         "product_id": pid,
                         "product_name": pname,
+                        "style_id": sid or "-",
+                        "style_name": sname or "-",
                         "store_name": store,
                         "date": d,
                     })
@@ -614,10 +686,10 @@ def get_products_without_merchant_code() -> pd.DataFrame:
                 continue
 
     if not rows:
-        return pd.DataFrame(columns=["product_id", "product_name", "store_name", "order_count"])
+        return pd.DataFrame(columns=["product_id", "product_name", "style_id", "style_name", "store_name", "order_count"])
 
     df = pd.DataFrame(rows)
-    agg = df.groupby(["product_id", "product_name", "store_name"], as_index=False).agg(
+    agg = df.groupby(["product_id", "product_name", "style_id", "style_name", "store_name"], as_index=False).agg(
         order_count=("date", "count"),
         first_date=("date", "min"),
     )
