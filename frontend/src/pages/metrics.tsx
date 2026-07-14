@@ -8,7 +8,7 @@ import { Select } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { TrendChart } from "@/components/trend-chart"
+import { MetricLineChart } from "@/components/metric-line-chart"
 import { getStores, getAnalysis, getTrend, type Store } from "@/api/client"
 
 function formatNumber(v: any, digits = 2) {
@@ -241,14 +241,80 @@ export function MetricsPage() {
             })}
           </TabsContent>
 
-          <TabsContent value="trend">
+          <TabsContent value="trend" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>趋势图</CardTitle>
-                <CardDescription>推广花费与有效订单 GMV 走势</CardDescription>
+                <CardTitle>趋势细分</CardTitle>
+                <CardDescription>按主题拆分的多维度走势</CardDescription>
               </CardHeader>
-              <CardContent>
-                <TrendChart data={trend} />
+              <CardContent className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <MetricLineChart
+                  title="成交与收入"
+                  description="推广花费、推广 GMV、订单 GMV、有效 GMV"
+                  data={trend}
+                  metrics={[
+                    { key: "promo_spend", name: "推广花费", color: "#ef4444", unit: "元" },
+                    { key: "promo_gmv", name: "推广 GMV", color: "#3b82f6", unit: "元" },
+                    { key: "order_gmv", name: "订单 GMV", color: "#22c55e", unit: "元" },
+                    { key: "valid_order_gmv", name: "有效 GMV", color: "#8b5cf6", unit: "元" },
+                  ]}
+                />
+                <MetricLineChart
+                  title="ROI 与效率"
+                  description="推广 ROI、真实 ROI、有效 GMV ROI"
+                  data={trend}
+                  metrics={[
+                    { key: "promo_roi", name: "推广 ROI", color: "#ef4444" },
+                    { key: "real_roi", name: "真实 ROI", color: "#3b82f6" },
+                    { key: "valid_order_gmv_roi", name: "有效 GMV ROI", color: "#22c55e" },
+                  ]}
+                />
+                <MetricLineChart
+                  title="流量与点击成本"
+                  description="曝光量、点击量、CTR、CPC、CPM"
+                  data={trend}
+                  metrics={[
+                    { key: "exposure", name: "曝光量", color: "#f59e0b", unit: "次" },
+                    { key: "clicks", name: "点击量", color: "#06b6d4", unit: "次" },
+                    { key: "ctr", name: "CTR", color: "#ec4899", unit: "%" },
+                    { key: "cpc", name: "CPC", color: "#64748b", unit: "元" },
+                    { key: "cpm", name: "CPM", color: "#8b5cf6", unit: "元" },
+                  ]}
+                />
+                <MetricLineChart
+                  title="退款与取消"
+                  description="退款率、取消率、问题订单率及三阶段退款率"
+                  data={trend}
+                  metrics={[
+                    { key: "refund_rate", name: "退款率", color: "#ef4444", unit: "%" },
+                    { key: "cancel_rate", name: "取消率", color: "#f59e0b", unit: "%" },
+                    { key: "problem_rate", name: "问题订单率", color: "#64748b", unit: "%" },
+                    { key: "refund_unshipped_rate", name: "未发货退款率", color: "#3b82f6", unit: "%" },
+                    { key: "refund_shipped_rate", name: "已发货退款率", color: "#22c55e", unit: "%" },
+                    { key: "refund_received_rate", name: "已收货退款率", color: "#8b5cf6", unit: "%" },
+                  ]}
+                />
+                <MetricLineChart
+                  title="自然流量"
+                  description="自然订单数、自然 GMV 及占比"
+                  data={trend}
+                  metrics={[
+                    { key: "organic_orders", name: "自然订单", color: "#22c55e", unit: "单" },
+                    { key: "organic_gmv", name: "自然 GMV", color: "#3b82f6", unit: "元" },
+                    { key: "organic_ratio_orders", name: "自然订单占比", color: "#f59e0b", unit: "%" },
+                    { key: "organic_ratio_gmv", name: "自然 GMV 占比", color: "#ec4899", unit: "%" },
+                  ]}
+                />
+                <MetricLineChart
+                  title="成本与利润"
+                  description="链接毛利、盈亏、毛利率"
+                  data={trend}
+                  metrics={[
+                    { key: "link_gross_profit", name: "链接毛利", color: "#22c55e", unit: "元" },
+                    { key: "profit_loss", name: "盈亏", color: "#ef4444", unit: "元" },
+                    { key: "gross_margin_rate", name: "毛利率", color: "#3b82f6", unit: "%" },
+                  ]}
+                />
               </CardContent>
             </Card>
           </TabsContent>

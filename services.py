@@ -209,6 +209,22 @@ def load_trend_data(
 ) -> List[Dict[str, Any]]:
     start_s = _date_str(start_date)
     end_s = _date_str(end_date)
+    trend_keys = [
+        "promo_spend", "promo_gmv", "order_gmv", "valid_order_gmv",
+        "merchant_income", "valid_merchant_income",
+        "order_count", "valid_order_count", "promo_orders",
+        "exposure", "clicks",
+        "promo_roi", "real_roi", "valid_order_gmv_roi",
+        "ctr", "click_to_order_rate", "exposure_to_order_rate",
+        "cpc", "cpm",
+        "promo_gmv_ratio", "valid_order_gmv_ratio", "promo_order_ratio",
+        "refund_rate", "cancel_rate", "problem_rate",
+        "refund_unshipped_rate", "refund_shipped_rate", "refund_received_rate",
+        "refund_count", "cancel_count",
+        "refund_unshipped_count", "refund_shipped_count", "refund_received_count",
+        "organic_orders", "organic_gmv", "organic_ratio_orders", "organic_ratio_gmv",
+        "total_cost", "link_gross_profit", "profit_loss", "gross_margin_rate",
+    ]
     rows = []
     for store in store_names:
         dates = [d for d in list_available_dates(store) if start_s <= d <= end_s]
@@ -217,14 +233,10 @@ def load_trend_data(
                 p, _ = load_daily_data(d, store)
                 p = apply_costs_to_metrics(p, store)
                 day_kpis = compute_overall_kpis(p)
-                rows.append({
-                    "store_name": store,
-                    "date": d,
-                    "promo_spend": day_kpis.get("promo_spend", 0),
-                    "promo_gmv": day_kpis.get("promo_gmv", 0),
-                    "valid_order_gmv": day_kpis.get("valid_order_gmv", 0),
-                    "valid_merchant_income": day_kpis.get("valid_merchant_income", 0),
-                })
+                row = {"store_name": store, "date": d}
+                for k in trend_keys:
+                    row[k] = day_kpis.get(k, 0)
+                rows.append(row)
             except Exception:
                 continue
     return rows
