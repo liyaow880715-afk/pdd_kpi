@@ -111,8 +111,23 @@ def compute_product_metrics(merged: pd.DataFrame) -> pd.DataFrame:
     df["click_to_order_rate"] = df.apply(
         lambda r: safe_div(r["promo_orders"], r["clicks"]) * 100, axis=1
     )
+    df["exposure_to_order_rate"] = df.apply(
+        lambda r: safe_div(r["promo_orders"], r["exposure"]) * 100, axis=1
+    )
     df["cpc"] = df.apply(
         lambda r: safe_div(r["promo_spend"], r["clicks"]), axis=1
+    )
+    df["cpm"] = df.apply(
+        lambda r: safe_div(r["promo_spend"], r["exposure"]) * 1000, axis=1
+    )
+    df["promo_gmv_ratio"] = df.apply(
+        lambda r: safe_div(r["promo_gmv"], r["order_gmv"]) * 100, axis=1
+    )
+    df["valid_order_gmv_ratio"] = df.apply(
+        lambda r: safe_div(r["valid_order_gmv"], r["order_gmv"]) * 100, axis=1
+    )
+    df["promo_order_ratio"] = df.apply(
+        lambda r: safe_div(r["promo_orders"], r["order_count"]) * 100, axis=1
     )
 
     # 订单侧指标（全部订单）
@@ -233,9 +248,16 @@ def compute_overall_kpis(metrics: pd.DataFrame) -> Dict[str, float]:
         "refund_received_rate": safe_div(totals["refund_received_count"], totals["order_count"]) * 100,
         "ctr": safe_div(totals["clicks"], totals["exposure"]) * 100,
         "click_to_order_rate": safe_div(totals["promo_orders"], totals["clicks"]) * 100,
+        "exposure_to_order_rate": safe_div(totals["promo_orders"], totals["exposure"]) * 100,
         "cpc": safe_div(totals["promo_spend"], totals["clicks"]),
+        "cpm": safe_div(totals["promo_spend"], totals["exposure"]) * 1000,
         "organic_ratio_gmv": safe_div(totals["organic_gmv"], totals["order_gmv"]) * 100,
         "organic_ratio_orders": safe_div(totals["organic_orders"], totals["order_count"]) * 100,
+        "promo_gmv_ratio": safe_div(totals["promo_gmv"], totals["order_gmv"]) * 100,
+        "valid_order_gmv_ratio": safe_div(totals["valid_order_gmv"], totals["order_gmv"]) * 100,
+        "promo_order_ratio": safe_div(totals["promo_orders"], totals["order_count"]) * 100,
+        "exposure": totals["exposure"],
+        "clicks": totals["clicks"],
         "order_count": totals["order_count"],
         "valid_order_count": totals["valid_order_count"],
         "promo_orders": totals["promo_orders"],

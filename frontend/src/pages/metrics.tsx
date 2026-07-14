@@ -17,12 +17,12 @@ function formatNumber(v: any, digits = 2) {
   return v
 }
 
-function KpiCard({ label, value, unit = "" }: { label: string; value: any; unit?: string }) {
+function KpiCard({ label, value, unit = "", indent = false }: { label: string; value: any; unit?: string; indent?: boolean }) {
   return (
-    <Card>
+    <Card className={indent ? "border-l-4 border-l-primary/30" : ""}>
       <CardHeader className="pb-2">
-        <CardDescription className="text-xs">{label}</CardDescription>
-        <CardTitle className="text-xl">
+        <CardDescription className={`text-xs ${indent ? "pl-2" : ""}`}>{label}</CardDescription>
+        <CardTitle className={`text-xl ${indent ? "pl-2" : ""}`}>
           {formatNumber(value)} {unit && <span className="text-sm font-normal text-muted-foreground">{unit}</span>}
         </CardTitle>
       </CardHeader>
@@ -36,9 +36,12 @@ const kpiGroups = [
     items: [
       { key: "promo_spend", label: "推广花费", unit: "元" },
       { key: "promo_gmv", label: "推广 GMV", unit: "元" },
+      { key: "promo_gmv_ratio", label: "推广 GMV 占比", unit: "%" },
       { key: "promo_orders", label: "推广订单数" },
+      { key: "promo_order_ratio", label: "推广订单占比", unit: "%" },
       { key: "order_gmv", label: "订单 GMV", unit: "元" },
       { key: "valid_order_gmv", label: "有效订单 GMV", unit: "元" },
+      { key: "valid_order_gmv_ratio", label: "有效 GMV 占比", unit: "%" },
       { key: "merchant_income", label: "商家实收", unit: "元" },
       { key: "valid_merchant_income", label: "有效商家实收", unit: "元" },
       { key: "order_count", label: "订单数" },
@@ -51,26 +54,30 @@ const kpiGroups = [
       { key: "promo_roi", label: "推广 ROI" },
       { key: "real_roi", label: "真实 ROI" },
       { key: "valid_order_gmv_roi", label: "有效 GMV ROI" },
+      { key: "exposure", label: "曝光量" },
+      { key: "clicks", label: "点击量" },
       { key: "ctr", label: "点击率 CTR", unit: "%" },
-      { key: "click_to_order_rate", label: "点击转化率", unit: "%" },
       { key: "cpc", label: "CPC", unit: "元" },
+      { key: "cpm", label: "CPM", unit: "元" },
+      { key: "click_to_order_rate", label: "点击转化率", unit: "%" },
+      { key: "exposure_to_order_rate", label: "曝光到订单转化率", unit: "%" },
       { key: "promo_cost_per_order", label: "推广单均成本", unit: "元" },
     ],
   },
   {
     title: "退款与取消",
     items: [
-      { key: "refund_rate", label: "退款率", unit: "%" },
-      { key: "cancel_rate", label: "取消率", unit: "%" },
       { key: "problem_rate", label: "问题订单率", unit: "%" },
-      { key: "refund_unshipped_rate", label: "未发货退款率", unit: "%" },
-      { key: "refund_shipped_rate", label: "已发货退款率", unit: "%" },
-      { key: "refund_received_rate", label: "已收货退款率", unit: "%" },
+      { key: "refund_rate", label: "退款率", unit: "%" },
+      { key: "refund_unshipped_rate", label: "└ 未发货退款率", unit: "%", indent: true },
+      { key: "refund_shipped_rate", label: "└ 已发货退款率", unit: "%", indent: true },
+      { key: "refund_received_rate", label: "└ 已收货退款率", unit: "%", indent: true },
+      { key: "cancel_rate", label: "取消率", unit: "%" },
       { key: "refund_count", label: "退款数" },
+      { key: "refund_unshipped_count", label: "└ 未发货退款数", indent: true },
+      { key: "refund_shipped_count", label: "└ 已发货退款数", indent: true },
+      { key: "refund_received_count", label: "└ 已收货退款数", indent: true },
       { key: "cancel_count", label: "取消数" },
-      { key: "refund_unshipped_count", label: "未发货退款数" },
-      { key: "refund_shipped_count", label: "已发货退款数" },
-      { key: "refund_received_count", label: "已收货退款数" },
     ],
   },
   {
@@ -99,14 +106,17 @@ const productColumns = [
   { key: "promo_spend", label: "推广花费" },
   { key: "promo_gmv", label: "推广GMV" },
   { key: "promo_orders", label: "推广订单" },
+  { key: "exposure", label: "曝光量" },
+  { key: "clicks", label: "点击量" },
+  { key: "ctr", label: "CTR%" },
+  { key: "cpc", label: "CPC" },
+  { key: "cpm", label: "CPM" },
   { key: "order_count", label: "订单数" },
   { key: "valid_order_count", label: "有效订单" },
   { key: "valid_order_gmv", label: "有效GMV" },
   { key: "valid_merchant_income", label: "有效收入" },
   { key: "promo_roi", label: "推广ROI" },
   { key: "real_roi_merchant_income", label: "真实ROI" },
-  { key: "ctr", label: "CTR%" },
-  { key: "cpc", label: "CPC" },
   { key: "refund_rate", label: "退款率%" },
   { key: "cancel_rate", label: "取消率%" },
   { key: "problem_rate", label: "问题率%" },
@@ -124,10 +134,16 @@ const styleColumns = [
   { key: "style_id", label: "样式ID" },
   { key: "style_name", label: "样式名称" },
   { key: "order_count", label: "订单数" },
+  { key: "valid_order_count", label: "有效订单" },
   { key: "order_gmv", label: "GMV" },
+  { key: "valid_order_gmv", label: "有效GMV" },
   { key: "merchant_income", label: "收入" },
+  { key: "valid_merchant_income", label: "有效收入" },
   { key: "refund_count", label: "退款数" },
   { key: "cancel_count", label: "取消数" },
+  { key: "refund_unshipped_count", label: "未发货退款" },
+  { key: "refund_shipped_count", label: "已发货退款" },
+  { key: "refund_received_count", label: "已收货退款" },
 ]
 
 export function MetricsPage() {
@@ -216,7 +232,7 @@ export function MetricsPage() {
                   <CardContent>
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                       {visibleItems.map((item) => (
-                        <KpiCard key={item.key} label={item.label} value={kpis[item.key]} unit={item.unit} />
+                        <KpiCard key={item.key} label={item.label} value={kpis[item.key]} unit={item.unit} indent={(item as any).indent} />
                       ))}
                     </div>
                   </CardContent>
