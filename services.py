@@ -232,6 +232,7 @@ def load_trend_data(
         for d in dates:
             try:
                 p, _ = load_daily_data(d, store)
+                p = compute_product_metrics(p)
                 p = apply_costs_to_metrics(p, store)
                 day_kpis = compute_overall_kpis(p)
                 row = {"store_name": store, "date": d}
