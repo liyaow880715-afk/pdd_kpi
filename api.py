@@ -11,7 +11,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from routers import stores, imports, orders, metrics, costs, ai, wecom, exports, auth
+from routers import stores, imports, orders, metrics, costs, ai, wecom, exports, auth, dashboard
 from auth import auth_middleware, is_public_path
 
 
@@ -65,6 +65,7 @@ app.include_router(costs.router, prefix="/api/costs", tags=["costs"])
 app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
 app.include_router(wecom.router, prefix="/api/wecom", tags=["wecom"])
 app.include_router(exports.router, prefix="/api/exports", tags=["exports"])
+app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
 
 
 @app.get("/api/health")

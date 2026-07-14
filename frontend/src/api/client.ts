@@ -125,6 +125,13 @@ export async function getRecords(storeName?: string) {
   return res.data
 }
 
+export async function getDashboardSummary(startDate: string, endDate: string) {
+  const res = await api.get("/dashboard/summary", {
+    params: { start_date: startDate, end_date: endDate },
+  })
+  return res.data as { store_count: number; start_date: string; end_date: string; kpis: Kpis; trend: any[] }
+}
+
 export async function deleteRecord(storeName: string, date: string) {
   const res = await api.delete(`/imports/records/${storeName}/${date}`)
   return res.data

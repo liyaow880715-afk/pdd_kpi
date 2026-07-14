@@ -1,40 +1,254 @@
 import { useEffect, useState } from "react"
-import { BarChart3, Store, Upload } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { getStores, getRecords } from "@/api/client"
+import { BarChart3, Store, Calendar } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { MetricLineChart } from "@/components/metric-line-chart"
+import { getStores, getDashboardSummary, type Kpis } from "@/api/client"
+
+function formatNumber(v: any, digits = 2) {
+  if (v === null || v === undefined || Number.isNaN(v)) return "-"
+  if (typeof v === "number") return v.toLocaleString("zh-CN", { maximumFractionDigits: digits })
+  return v
+}
+
+function KpiCard({ label, value, unit = "" }: { label: string; value: any; unit?: string }) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardDescription className="text-xs">{label}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <CardTitle className="text-xl">
+          {formatNumber(value)} {unit && <span className="text-sm font-normal text-muted-foreground">{unit}</span>}
+        </CardTitle>
+      </CardContent>
+    </Card>
+  )
+}
+
+const kpiGroups = [
+  {
+    title: "成交与收入",
+    items: [
+      { key: "promo_spend", label: "推广花费", unit: "元" },
+      { key: "promo_gmv", label: "推广 GMV", unit: "元" },
+      { key: "order_gmv", label: "订单 GMV", unit: "元" },
+      { key: "valid_order_gmv", label: "有效订单 GMV", unit: "元" },
+      { key: "merchant_income", label: "商家实收", unit: "元" },
+      { key: "valid_merchant_income", label: "有效商家实收", unit: "元" },
+      { key: "promo_cost_ratio", label: "推广费比", unit: "%" },
+      { key: "order_count", label: "订单数" },
+      { key: "valid_order_count", label: "有效订单数" },
+    ],
+  },
+  {
+    title: "ROI 与效率",
+    items: [
+      { key: "promo_roi", label: "推广 ROI" },
+      { key: "real_roi", label: "真实 ROI" },
+      { key: "ctr", label: "点击率 CTR", unit: "%" },
+      { key: "cpc", label: "CPC", unit: "元" },
+      { key: "cpm", label: "CPM", unit: "元" },
+    ],
+  },
+  {
+    title: "退款与取消",
+    items: [
+      { key: "problem_rate", label: "问题订单率", unit: "%" },
+      { key: "refund_rate", label: "退款率", unit: "%" },
+      { key: "cancel_rate", label: "取消率", unit: "%" },
+    ],
+  },
+  {
+    title: "成本与利润",
+    items: [
+      { key: "total_cost", label: "总成本", unit: "元" },
+      { key: "link_gross_profit", label: "链接毛利", unit: "元" },
+      { key: "profit_loss", label: "盈亏", unit: "元" },
+      { key: "gross_margin_rate", label: "毛利率", unit: "%" },
+    ],
+  },
+]
+
+const trendCharts = [
+  {
+    title: "成交与收入",
+    description: "推广花费、GMV、有效 GMV",
+    metrics: [
+      { key: "promo_spend", name: "推广花费", color: "#ef4444", unit: "元" },
+      { key: "promo_gmv", name: "推广 GMV", color: "#3b82f6", unit: "元" },
+      { key: "order_gmv", name: "订单 GMV", color: "#22c55e", unit: "元" },
+      { key: "valid_order_gmv", name: "有效 GMV", color: "#8b5cf6", unit: "元" },
+    ],
+  },
+  {
+    title: "ROI 与效率",
+    description: "推广 ROI、真实 ROI、CTR",
+    metrics: [
+      { key: "promo_roi", name: "推广 ROI", color: "#ef4444" },
+      { key: "real_roi", name: "真实 ROI", color: "#3b82f6" },
+      { key: "ctr", name: "CTR", color: "#22c55e", unit: "%" },
+    ],
+  },
+  {
+    title: "流量与点击成本",
+    description: "曝光量、点击量、CPC、CPM",
+    metrics: [
+      { key: "exposure", name: "曝光量", color: "#f59e0b", unit: "次" },
+      { key: "clicks", name: "点击量", color: "#06b6d4", unit: "次" },
+      { key: "cpc", name: "CPC", color: "#64748b", unit: "元" },
+      { key: "cpm", name: "CPM", color: "#8b5cf6", unit: "元" },
+    ],
+  },
+  {
+    title: "退款与取消",
+    description: "问题订单率、退款率、取消率",
+    metrics: [
+      { key: "problem_rate", name: "问题订单率", color: "#ef4444", unit: "%" },
+      { key: "refund_rate", name: "退款率", color: "#3b82f6", unit: "%" },
+      { key: "cancel_rate", name: "取消率", color: "#f59e0b", unit: "%" },
+    ],
+  },
+  {
+    title: "成本与利润",
+    description: "总成本、链接毛利、盈亏、毛利率",
+    metrics: [
+      { key: "total_cost", name: "总成本", color: "#f59e0b", unit: "元" },
+      { key: "link_gross_profit", name: "链接毛利", color: "#22c55e", unit: "元" },
+      { key: "profit_loss", name: "盈亏", color: "#ef4444", unit: "元" },
+    ],
+  },
+]
 
 export function DashboardPage() {
   const [storeCount, setStoreCount] = useState(0)
-  const [recordCount, setRecordCount] = useState(0)
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 30)
+    return d.toISOString().split("T")[0]
+  })
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split("T")[0])
+  const [kpis, setKpis] = useState<Kpis>({})
+  const [trend, setTrend] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState("")
 
   useEffect(() => {
     getStores().then((s) => setStoreCount(s.length))
-    getRecords().then((r) => setRecordCount(r.length))
+    fetchSummary()
   }, [])
 
-  const cards = [
-    { title: "店铺数量", value: storeCount, icon: Store },
-    { title: "导入记录", value: recordCount, icon: Upload },
-    { title: "功能模块", value: 8, icon: BarChart3 },
-  ]
+  const fetchSummary = async () => {
+    setLoading(true)
+    setMessage("")
+    try {
+      const data = await getDashboardSummary(startDate, endDate)
+      setKpis(data.kpis)
+      setTrend(data.trend)
+    } catch (err: any) {
+      setMessage(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div className="space-y-4">
       <h2 className="text-2xl font-bold">总览</h2>
-      <p className="text-muted-foreground">欢迎使用 PDD BI Dashboard。</p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {cards.map((c) => (
-          <Card key={c.title}>
-            <CardHeader className="pb-2 flex flex-row items-center justify-between">
-              <CardTitle className="text-sm font-medium">{c.title}</CardTitle>
-              <c.icon className="h-4 w-4 text-muted-foreground" />
+
+      <Card>
+        <CardContent className="pt-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+            <div className="space-y-2">
+              <Label>开始日期</Label>
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>结束日期</Label>
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            </div>
+            <Button onClick={fetchSummary} disabled={loading} className="lg:col-span-3">
+              <Calendar className="h-4 w-4 mr-1" /> {loading ? "加载中..." : "查询"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {message && (
+        <div className="text-sm p-3 rounded-md bg-destructive/10 text-destructive">{message}</div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm font-medium">店铺数量</CardTitle>
+            <Store className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{storeCount}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm font-medium">数据区间</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-lg font-bold">{startDate} ~ {endDate}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm font-medium">功能模块</CardTitle>
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">8</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {kpis && Object.keys(kpis).length > 0 && (
+        <>
+          {kpiGroups.map((group) => {
+            const items = group.items.filter((item) => kpis[item.key] !== undefined && kpis[item.key] !== null)
+            if (items.length === 0) return null
+            return (
+              <Card key={group.title}>
+                <CardHeader>
+                  <CardTitle>{group.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                    {items.map((item) => (
+                      <KpiCard key={item.key} label={item.label} value={kpis[item.key]} unit={item.unit} />
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>趋势</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{c.value}</div>
+            <CardContent className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              {trendCharts.map((chart) => (
+                <MetricLineChart
+                  key={chart.title}
+                  title={chart.title}
+                  description={chart.description}
+                  data={trend}
+                  metrics={chart.metrics}
+                />
+              ))}
             </CardContent>
           </Card>
-        ))}
-      </div>
+        </>
+      )}
     </div>
   )
 }

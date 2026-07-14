@@ -443,6 +443,110 @@ def load_trend_data(
     return rows
 
 
+def _recompute_kpis(totals: Dict[str, float]) -> Dict[str, float]:
+    """从基础字段汇总值重新计算比率类 KPI"""
+    from metrics import safe_div
+
+    def _get(key: str) -> float:
+        return float(totals.get(key, 0) or 0)
+
+    income = _get("valid_merchant_income")
+    profit = _get("link_gross_profit")
+
+    return {
+        **{k: _get(k) for k in [
+            "promo_spend", "promo_gmv", "order_gmv", "valid_order_gmv",
+            "merchant_income", "valid_merchant_income", "exposure", "clicks",
+            "order_count", "valid_order_count", "promo_orders",
+            "refund_count", "cancel_count",
+            "refund_unshipped_count", "refund_shipped_count", "refund_received_count",
+            "organic_orders", "organic_gmv", "organic_merchant_income", "organic_valid_order_count",
+            "total_cost", "link_gross_profit", "profit_loss",
+        ]},
+        "promo_roi": safe_div(_get("promo_gmv"), _get("promo_spend")),
+        "real_roi": safe_div(_get("valid_merchant_income"), _get("promo_spend")),
+        "valid_order_gmv_roi": safe_div(_get("valid_order_gmv"), _get("promo_spend")),
+        "refund_rate": safe_div(_get("refund_count"), _get("order_count")) * 100,
+        "cancel_rate": safe_div(_get("cancel_count"), _get("order_count")) * 100,
+        "problem_rate": safe_div(_get("refund_count") + _get("cancel_count"), _get("order_count")) * 100,
+        "refund_unshipped_rate": safe_div(_get("refund_unshipped_count"), _get("order_count")) * 100,
+        "refund_shipped_rate": safe_div(_get("refund_shipped_count"), _get("order_count")) * 100,
+        "refund_received_rate": safe_div(_get("refund_received_count"), _get("order_count")) * 100,
+        "ctr": safe_div(_get("clicks"), _get("exposure")) * 100,
+        "click_to_order_rate": safe_div(_get("promo_orders"), _get("clicks")) * 100,
+        "exposure_to_order_rate": safe_div(_get("promo_orders"), _get("exposure")) * 100,
+        "cpc": safe_div(_get("promo_spend"), _get("clicks")),
+        "cpm": safe_div(_get("promo_spend"), _get("exposure")) * 1000,
+        "organic_ratio_gmv": safe_div(_get("organic_gmv"), _get("order_gmv")) * 100,
+        "organic_ratio_orders": safe_div(_get("organic_orders"), _get("order_count")) * 100,
+        "organic_ratio_income": safe_div(_get("organic_merchant_income"), _get("valid_merchant_income")) * 100,
+        "organic_ratio_valid_orders": safe_div(_get("organic_valid_order_count"), _get("valid_order_count")) * 100,
+        "promo_gmv_ratio": safe_div(_get("promo_gmv"), _get("order_gmv")) * 100,
+        "valid_order_gmv_ratio": safe_div(_get("valid_order_gmv"), _get("order_gmv")) * 100,
+        "promo_order_ratio": safe_div(_get("promo_orders"), _get("order_count")) * 100,
+        "promo_cost_ratio": safe_div(_get("promo_spend"), _get("valid_merchant_income")) * 100,
+        "gross_margin_rate": (profit / income * 100) if income else 0.0,
+    }
+
+
+def get_dashboard_summary(
+    start_date: datetime.date,
+    end_date: datetime.date,
+) -> Dict[str, Any]:
+    """汇总所有店铺在指定日期范围内的经营与推广数据"""
+    store_names = list_available_stores()
+
+    base_keys = [
+        "promo_spend", "promo_gmv", "promo_orders", "exposure", "clicks",
+        "order_count", "valid_order_count", "order_gmv", "valid_order_gmv",
+        "merchant_income", "valid_merchant_income",
+        "refund_count", "cancel_count",
+        "refund_unshipped_count", "refund_shipped_count", "refund_received_count",
+        "organic_orders", "organic_gmv", "organic_merchant_income", "organic_valid_order_count",
+        "total_cost", "link_gross_profit", "profit_loss",
+    ]
+
+    # 汇总所有店铺整体 KPI
+    total = {k: 0.0 for k in base_keys}
+    for store in store_names:
+        try:
+            analysis = load_analysis_data(store, start_date, end_date)
+            kpis = analysis.get("kpis") or {}
+            for k in base_keys:
+                total[k] += float(kpis.get(k) or 0)
+        except Exception:
+            continue
+
+    summary_kpis = _recompute_kpis(total)
+    summary_kpis = {k: (None if pd.isna(v) else v) for k, v in summary_kpis.items()}
+
+    # 按日期汇总趋势
+    trend_rows = load_trend_data(store_names, start_date, end_date)
+    trend_by_date: Dict[str, Dict[str, float]] = {}
+    for row in trend_rows:
+        d = row.get("date")
+        if not d:
+            continue
+        if d not in trend_by_date:
+            trend_by_date[d] = {k: 0.0 for k in base_keys}
+        for k in base_keys:
+            trend_by_date[d][k] += float(row.get(k, 0) or 0)
+
+    trend_summary = []
+    for d in sorted(trend_by_date.keys()):
+        row = _recompute_kpis(trend_by_date[d])
+        row["date"] = d
+        trend_summary.append({k: (None if pd.isna(v) else v) for k, v in row.items()})
+
+    return {
+        "store_count": len(store_names),
+        "start_date": _date_str(start_date),
+        "end_date": _date_str(end_date),
+        "kpis": summary_kpis,
+        "trend": trend_summary,
+    }
+
+
 # ---------- 成本 ----------
 
 def get_costs(store_name: str) -> List[Dict[str, Any]]:
