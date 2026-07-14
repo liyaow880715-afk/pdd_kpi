@@ -190,14 +190,11 @@ def import_daily_data(
         # 只上传了订单，尝试用已有推广数据重新计算
         try:
             existing_promo = load_daily_promo(date_str, store_name)
-            promo_mapping_existing = {}
-            # 重新标准化列名以便 match
-            from data_loader import normalize_columns
-            existing_promo_norm, promo_mapping_existing = normalize_columns(existing_promo)
+            # 已保存的推广数据列名已经是标准化的，直接复用
             merged, style_metrics, orders = match_promotion_and_orders(
-                existing_promo_norm,
+                existing_promo,
                 order_df,
-                promo_mapping_existing,
+                {},
                 order_mapping,
                 date=date_str,
             )
