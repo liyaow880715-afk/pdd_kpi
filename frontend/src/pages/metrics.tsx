@@ -84,9 +84,13 @@ const kpiGroups = [
     title: "自然流量",
     items: [
       { key: "organic_orders", label: "自然订单数" },
+      { key: "organic_valid_order_count", label: "自然有效订单数" },
       { key: "organic_gmv", label: "自然 GMV", unit: "元" },
+      { key: "organic_merchant_income", label: "自然有效商家实收", unit: "元" },
       { key: "organic_ratio_orders", label: "自然订单占比", unit: "%" },
+      { key: "organic_ratio_valid_orders", label: "自然有效订单占比", unit: "%" },
       { key: "organic_ratio_gmv", label: "自然 GMV 占比", unit: "%" },
+      { key: "organic_ratio_income", label: "自然有效收入占比", unit: "%" },
     ],
   },
   {
@@ -122,6 +126,10 @@ const productColumns = [
   { key: "problem_rate", label: "问题率%" },
   { key: "organic_ratio_gmv", label: "自然GMV%" },
   { key: "organic_ratio_orders", label: "自然订单%" },
+  { key: "organic_merchant_income", label: "自然有效收入" },
+  { key: "organic_valid_order_count", label: "自然有效订单" },
+  { key: "organic_ratio_income", label: "自然收入%" },
+  { key: "organic_ratio_valid_orders", label: "自然有效订单%" },
   { key: "avg_order_gmv", label: "客单价" },
   { key: "avg_valid_order_income", label: "单均收入" },
   { key: "total_cost", label: "成本" },
@@ -296,13 +304,17 @@ export function MetricsPage() {
                 />
                 <MetricLineChart
                   title="自然流量"
-                  description="自然订单数、自然 GMV 及占比"
+                  description="自然订单、自然有效订单、自然 GMV、自然有效收入及占比"
                   data={trend}
                   metrics={[
                     { key: "organic_orders", name: "自然订单", color: "#22c55e", unit: "单" },
+                    { key: "organic_valid_order_count", name: "自然有效订单", color: "#10b981", unit: "单" },
                     { key: "organic_gmv", name: "自然 GMV", color: "#3b82f6", unit: "元" },
+                    { key: "organic_merchant_income", name: "自然有效收入", color: "#06b6d4", unit: "元" },
                     { key: "organic_ratio_orders", name: "自然订单占比", color: "#f59e0b", unit: "%" },
+                    { key: "organic_ratio_valid_orders", name: "自然有效订单占比", color: "#d97706", unit: "%" },
                     { key: "organic_ratio_gmv", name: "自然 GMV 占比", color: "#ec4899", unit: "%" },
+                    { key: "organic_ratio_income", name: "自然有效收入占比", color: "#8b5cf6", unit: "%" },
                   ]}
                 />
                 <MetricLineChart

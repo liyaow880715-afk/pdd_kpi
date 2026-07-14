@@ -178,6 +178,15 @@ def compute_product_metrics(merged: pd.DataFrame) -> pd.DataFrame:
         lambda r: safe_div(r["organic_merchant_income"], r["valid_merchant_income"]) * 100, axis=1
     )
 
+    # 有效订单拆分估算：按订单数比例拆分有效订单
+    df["promo_valid_order_count"] = df.apply(
+        lambda r: r["promo_orders"] * safe_div(r["valid_order_count"], r["order_count"]), axis=1
+    )
+    df["organic_valid_order_count"] = (df["valid_order_count"] - df["promo_valid_order_count"]).clip(lower=0)
+    df["organic_ratio_valid_orders"] = df.apply(
+        lambda r: safe_div(r["organic_valid_order_count"], r["valid_order_count"]) * 100, axis=1
+    )
+
     # 每单贡献
     df["avg_order_gmv"] = df.apply(
         lambda r: safe_div(r["order_gmv"], r["order_count"]), axis=1
@@ -226,6 +235,8 @@ def compute_overall_kpis(metrics: pd.DataFrame) -> Dict[str, float]:
         "refund_received_count": metrics.get("refund_received_count", pd.Series(0, index=metrics.index)).sum(),
         "organic_orders": metrics["organic_orders"].sum(),
         "organic_gmv": metrics["organic_gmv"].sum(),
+        "organic_merchant_income": metrics["organic_merchant_income"].sum(),
+        "organic_valid_order_count": metrics["organic_valid_order_count"].sum(),
     }
 
     kpis = {
@@ -253,6 +264,10 @@ def compute_overall_kpis(metrics: pd.DataFrame) -> Dict[str, float]:
         "cpm": safe_div(totals["promo_spend"], totals["exposure"]) * 1000,
         "organic_ratio_gmv": safe_div(totals["organic_gmv"], totals["order_gmv"]) * 100,
         "organic_ratio_orders": safe_div(totals["organic_orders"], totals["order_count"]) * 100,
+        "organic_merchant_income": totals["organic_merchant_income"],
+        "organic_valid_order_count": totals["organic_valid_order_count"],
+        "organic_ratio_income": safe_div(totals["organic_merchant_income"], totals["valid_merchant_income"]) * 100,
+        "organic_ratio_valid_orders": safe_div(totals["organic_valid_order_count"], totals["valid_order_count"]) * 100,
         "promo_gmv_ratio": safe_div(totals["promo_gmv"], totals["order_gmv"]) * 100,
         "valid_order_gmv_ratio": safe_div(totals["valid_order_gmv"], totals["order_gmv"]) * 100,
         "promo_order_ratio": safe_div(totals["promo_orders"], totals["order_count"]) * 100,
@@ -297,7 +312,7 @@ def aggregate_product_metrics(daily_metrics_list: List[pd.DataFrame]) -> pd.Data
         "order_count", "valid_order_count", "order_gmv", "valid_order_gmv",
         "merchant_income", "valid_merchant_income",
         "refund_count", "cancel_count", "quantity", "valid_quantity",
-        "organic_orders", "organic_gmv",
+        "organic_orders", "organic_gmv", "organic_merchant_income", "organic_valid_order_count",
     ]
     # 退款阶段字段若已存在则一起汇总
     for refund_col in ["refund_unshipped_count", "refund_shipped_count", "refund_received_count"]:

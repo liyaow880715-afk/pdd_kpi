@@ -223,6 +223,7 @@ def load_trend_data(
         "refund_count", "cancel_count",
         "refund_unshipped_count", "refund_shipped_count", "refund_received_count",
         "organic_orders", "organic_gmv", "organic_ratio_orders", "organic_ratio_gmv",
+        "organic_merchant_income", "organic_valid_order_count", "organic_ratio_income", "organic_ratio_valid_orders",
         "total_cost", "link_gross_profit", "profit_loss", "gross_margin_rate",
     ]
     rows = []
