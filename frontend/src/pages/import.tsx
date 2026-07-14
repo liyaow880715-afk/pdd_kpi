@@ -5,14 +5,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select } from "@/components/ui/select"
+import { FileDropzone } from "@/components/ui/file-dropzone"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { getStores, importData, getRecords, deleteRecord, type Store, type ImportRecord } from "@/api/client"
+
+function getYesterday() {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  return d.toISOString().split("T")[0]
+}
 
 export function ImportPage() {
   const [stores, setStores] = useState<Store[]>([])
   const [records, setRecords] = useState<ImportRecord[]>([])
   const [storeName, setStoreName] = useState("")
-  const [importDate, setImportDate] = useState(new Date().toISOString().split("T")[0])
+  const [importDate, setImportDate] = useState(getYesterday())
   const [promoFile, setPromoFile] = useState<File | null>(null)
   const [orderFile, setOrderFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
@@ -76,7 +83,7 @@ export function ImportPage() {
           <CardTitle>导入每日数据</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>店铺</Label>
               <Select value={storeName} onChange={(e) => setStoreName(e.target.value)}>
@@ -93,14 +100,26 @@ export function ImportPage() {
               <Input type="date" value={importDate} onChange={(e) => setImportDate(e.target.value)} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>推广数据 Excel</Label>
-              <Input type="file" accept=".xls,.xlsx" onChange={(e) => setPromoFile(e.target.files?.[0] || null)} />
+              <FileDropzone
+                accept=".xls,.xlsx"
+                label="点击或拖拽上传推广 Excel"
+                description="支持 .xls / .xlsx"
+                value={promoFile}
+                onChange={setPromoFile}
+              />
             </div>
             <div className="space-y-2">
               <Label>订单数据 CSV</Label>
-              <Input type="file" accept=".csv" onChange={(e) => setOrderFile(e.target.files?.[0] || null)} />
+              <FileDropzone
+                accept=".csv"
+                label="点击或拖拽上传订单 CSV"
+                description="支持 .csv"
+                value={orderFile}
+                onChange={setOrderFile}
+              />
             </div>
           </div>
           <Button onClick={handleImport} disabled={loading}>
