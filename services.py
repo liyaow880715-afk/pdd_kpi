@@ -282,14 +282,48 @@ def import_cost_csv(store_name: str, file_bytes: bytes) -> Dict[str, Any]:
 # ---------- 全局成本（不区分店铺） ----------
 
 def get_global_costs() -> List[Dict[str, Any]]:
+    cfg = load_cost_config()
+    mapping = load_global_product_mapping(cfg)
+    # 尝试给商品名称为空的成本记录补全名称
+    code_to_name: Dict[str, str] = {}
+    for pid, code in mapping.items():
+        if code not in code_to_name:
+            code_to_name[code] = ""
+    # 从订单中查找商品名称
+    from storage import list_available_stores, list_available_dates, load_daily_orders
+    for store in list_available_stores() or []:
+        for d in list_available_dates(store):
+            try:
+                orders = load_daily_orders(d, store)
+                if orders.empty or "product_id" not in orders.columns:
+                    continue
+                for _, r in orders.iterrows():
+                    pid = str(r.get("product_id") or "").strip()
+                    if pid.endswith(".0"):
+                        pid = pid[:-2]
+                    code = mapping.get(pid)
+                    if code and not code_to_name.get(code):
+                        pname = str(r.get("product_name") or "").strip()
+                        if pname:
+                            code_to_name[code] = pname
+            except Exception:
+                continue
+
     rows = []
-    for rec in list_global_cost_rows():
+    for rec in list_global_cost_rows(cfg):
+        pname = rec.get("product_name", "")
+        if not pname:
+            pname = code_to_name.get(rec["merchant_code"], "")
+            if pname:
+                cfg["global_merchant_costs"][rec["merchant_code"]]["product_name"] = pname
         rows.append({
             "merchant_code": rec["merchant_code"],
-            "product_name": rec.get("product_name", ""),
+            "product_name": pname,
             "product_cost": float(rec.get("product_cost", 0) or 0),
             "logistics_cost": float(rec.get("logistics_cost", 0) or 0),
         })
+    if code_to_name:
+        save_cost_config(cfg)
     return rows
 
 

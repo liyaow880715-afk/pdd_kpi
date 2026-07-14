@@ -578,9 +578,12 @@ def save_global_product_mapping(
             config[GLOBAL_PRODUCT_MAP_KEY] = {}
         config[GLOBAL_PRODUCT_MAP_KEY][pid] = code
 
-    # 如果该商家编码还没有成本记录，自动创建一个记录，方便用户后续维护
-    if code not in load_global_costs(config):
+    # 如果该商家编码还没有成本记录，自动创建一个记录；如果已有但商品名称为空，则补全商品名称
+    existing = load_global_costs(config)
+    if code not in existing:
         config = save_global_cost(config, code, product_name=product_name or "")
+    elif product_name and not existing[code].get("product_name"):
+        config[GLOBAL_COSTS_KEY][code]["product_name"] = str(product_name).strip()
     return config
 
 
