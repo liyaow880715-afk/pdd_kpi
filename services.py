@@ -292,7 +292,7 @@ def import_daily_data(
     promo_only_results = [r for r in results if r.get("promo_saved") and not r.get("orders_saved")]
 
     total_product_rows = sum(r.get("product_rows", 0) for r in computed_results)
-    total_order_rows = sum(r.get("order_rows", 0) for r in computed_results)
+    total_order_rows = sum(r.get("order_rows", 0) for r in results if r.get("orders_saved"))
     processed_dates = sorted(set(r.get("date") for r in results if r.get("date")))
 
     return {
