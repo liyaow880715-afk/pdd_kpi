@@ -78,6 +78,56 @@ def _is_cancel(row) -> int:
     return 0
 
 
+def _parse_order_date(val) -> Optional[str]:
+    """从订单时间字符串中解析日期部分（YYYY-MM-DD）"""
+    if pd.isna(val):
+        return None
+    s = str(val).strip()
+    if not s or s in ("-", "NaT", "None", "nan"):
+        return None
+    # 尝试直接取前 10 位 yyyy-mm-dd
+    if len(s) >= 10 and s[4] == "-" and s[7] == "-":
+        return s[:10]
+    # 尝试用 pandas 解析
+    try:
+        dt = pd.to_datetime(s, errors="raise")
+        if pd.isna(dt):
+            return None
+        return dt.strftime("%Y-%m-%d")
+    except Exception:
+        return None
+
+
+def extract_order_dates(df: pd.DataFrame) -> pd.Series:
+    """
+    从订单数据中提取每条订单的日期。
+    优先使用 order_time，其次 pay_time，最后 order_time 原始列。
+    """
+    for col in ["order_time", "pay_time", "成交时间", "支付时间", "下单时间"]:
+        if col in df.columns:
+            dates = df[col].apply(_parse_order_date)
+            if dates.notna().any():
+                return dates
+    return pd.Series([None] * len(df), index=df.index)
+
+
+def filter_orders_by_date(df: pd.DataFrame, date: str) -> pd.DataFrame:
+    """
+    按订单实际成交/支付日期过滤，只保留与目标日期匹配的订单。
+    如果无法解析到任何日期，则返回原数据（兼容旧数据）。
+    """
+    if df.empty:
+        return df
+    df = df.copy()
+    df["_order_date"] = extract_order_dates(df)
+    if df["_order_date"].notna().sum() == 0:
+        df = df.drop(columns=["_order_date"])
+        return df
+    filtered = df[df["_order_date"] == date].copy()
+    filtered = filtered.drop(columns=["_order_date"])
+    return filtered
+
+
 def preprocess_orders(df: pd.DataFrame, mapping: Dict[str, Optional[str]]) -> pd.DataFrame:
     """
     预处理订单数据：标准化 ID、计算退款/取消标记

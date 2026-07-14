@@ -49,7 +49,10 @@ export function ImportPage() {
       formData.append("promo_file", promoFile)
       formData.append("order_file", orderFile)
       const res = await importData(formData)
-      setMessage(`导入成功：商品 ${res.product_rows} 行，样式 ${res.style_rows} 行，订单 ${res.order_rows} 行`)
+      const filterInfo = res.original_order_rows && res.original_order_rows !== res.order_rows
+        ? `（订单 CSV 共 ${res.original_order_rows} 行，按日期过滤后保留 ${res.order_rows} 行）`
+        : ""
+      setMessage(`导入成功：商品 ${res.product_rows} 行，样式 ${res.style_rows} 行，订单 ${res.order_rows} 行 ${filterInfo}`)
       setPromoFile(null)
       setOrderFile(null)
       fetchRecords()

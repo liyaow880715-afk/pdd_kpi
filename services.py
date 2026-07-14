@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 
 from data_loader import read_promotion_file, read_order_file
-from data_processor import match_promotion_and_orders
+from data_processor import match_promotion_and_orders, filter_orders_by_date
 from metrics import (
     compute_product_metrics,
     compute_overall_kpis,
@@ -104,12 +104,18 @@ def import_daily_data(
     promo_df, promo_mapping = read_promotion_file(promo_file)
     order_df, order_mapping = read_order_file(order_file)
 
+    date_str = _date_str(import_date)
+    # 订单按实际成交/支付时间拆分，只保留与导入日期匹配的部分
+    original_order_rows = len(order_df)
+    order_df = filter_orders_by_date(order_df, date_str)
+    filtered_order_rows = len(order_df)
+
     merged, style_metrics, orders = match_promotion_and_orders(
         promo_df,
         order_df,
         promo_mapping,
         order_mapping,
-        date=_date_str(import_date),
+        date=date_str,
     )
     merged["store_name"] = store_name
     style_metrics["store_name"] = store_name
@@ -131,6 +137,8 @@ def import_daily_data(
         "product_rows": len(metrics),
         "style_rows": len(style_metrics),
         "order_rows": len(orders),
+        "original_order_rows": original_order_rows,
+        "filtered_order_rows": filtered_order_rows,
     }
 
 
