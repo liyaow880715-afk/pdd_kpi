@@ -210,9 +210,9 @@ def import_daily_data(
         # 按订单实际日期拆分，逐日处理
         order_dates = extract_order_dates(order_df)
         order_df["_order_date"] = order_dates
+        # 无法解析日期的行归到用户选择的 import_date，避免丢单
+        order_df["_order_date"] = order_df["_order_date"].fillna(date_str)
         unique_dates = order_df["_order_date"].dropna().unique()
-        if len(unique_dates) == 0:
-            unique_dates = [date_str]
 
         new_dates: List[str] = []
         for d in sorted(unique_dates):
