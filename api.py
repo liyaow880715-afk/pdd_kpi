@@ -26,6 +26,9 @@ app = FastAPI(
     title="PDD KPI Dashboard API",
     version="2.0.0",
     lifespan=lifespan,
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
 )
 
 # CORS：开发环境允许全部来源，生产环境应收紧
