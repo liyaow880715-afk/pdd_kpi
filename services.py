@@ -235,7 +235,11 @@ def load_trend_data(
                 day_kpis = compute_overall_kpis(p)
                 row = {"store_name": store, "date": d}
                 for k in trend_keys:
-                    row[k] = day_kpis.get(k, 0)
+                    val = day_kpis.get(k, 0)
+                    # 把 numpy 标量转成 Python 原生类型，避免 FastAPI 序列化报错
+                    if hasattr(val, "item"):
+                        val = val.item()
+                    row[k] = val
                 rows.append(row)
             except Exception:
                 continue
