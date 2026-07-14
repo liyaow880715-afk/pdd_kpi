@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Save, RefreshCw, Link2, AlertCircle } from "lucide-react"
+import { Save, RefreshCw, Link2, AlertCircle, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -89,6 +89,64 @@ export function CostsPage() {
     }
   }
 
+  const renderCostTable = (rows: Cost[], title: string, variant: "warning" | "success", icon: React.ReactNode) => {
+    return (
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold flex items-center gap-2">
+          {icon}
+          {title}
+          <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{rows.length}</span>
+        </h3>
+        <div className="overflow-auto rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>商家编码</TableHead>
+                <TableHead>商品名称</TableHead>
+                <TableHead>商品成本/件</TableHead>
+                <TableHead>物流成本/件</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((cost) => {
+                const idx = costs.findIndex((c) => c.merchant_code === cost.merchant_code)
+                return (
+                  <TableRow key={cost.merchant_code}>
+                    <TableCell className="font-mono text-xs">{cost.merchant_code}</TableCell>
+                    <TableCell>
+                      <Input value={cost.product_name} onChange={(e) => updateCost(idx, "product_name", e.target.value)} />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        value={cost.product_cost}
+                        onChange={(e) => updateCost(idx, "product_cost", parseFloat(e.target.value) || 0)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        value={cost.logistics_cost}
+                        onChange={(e) => updateCost(idx, "logistics_cost", parseFloat(e.target.value) || 0)}
+                      />
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+              {rows.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center text-muted-foreground py-4">
+                    {variant === "warning" ? "暂无待维护商家编码" : "暂无已维护商家编码"}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       <h2 className="text-2xl font-bold">成本管理</h2>
@@ -106,52 +164,31 @@ export function CostsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>商家编码成本（全店铺通用）</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>商家编码成本（全店铺通用）</CardTitle>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleRefresh} disabled={loading}>
+                <RefreshCw className="h-4 w-4 mr-1" /> 刷新编码
+              </Button>
+              <Button onClick={handleSave}>
+                <Save className="h-4 w-4 mr-1" /> 保存
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleRefresh} disabled={loading}>
-              <RefreshCw className="h-4 w-4 mr-1" /> 刷新编码
-            </Button>
-            <Button onClick={handleSave}>
-              <Save className="h-4 w-4 mr-1" /> 保存
-            </Button>
-          </div>
-          <div className="overflow-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>商家编码</TableHead>
-                  <TableHead>商品名称</TableHead>
-                  <TableHead>商品成本/件</TableHead>
-                  <TableHead>物流成本/件</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {costs.map((cost, idx) => (
-                  <TableRow key={cost.merchant_code}>
-                    <TableCell className="font-mono text-xs">{cost.merchant_code}</TableCell>
-                    <TableCell>
-                      <Input value={cost.product_name} onChange={(e) => updateCost(idx, "product_name", e.target.value)} />
-                    </TableCell>
-                    <TableCell>
-                      <Input type="number" value={cost.product_cost} onChange={(e) => updateCost(idx, "product_cost", parseFloat(e.target.value) || 0)} />
-                    </TableCell>
-                    <TableCell>
-                      <Input type="number" value={cost.logistics_cost} onChange={(e) => updateCost(idx, "logistics_cost", parseFloat(e.target.value) || 0)} />
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {costs.length === 0 && !loading && (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground">
-                      点击「刷新编码」从订单中提取商家编码
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
+          {renderCostTable(
+            costs.filter((c) => c.product_cost <= 0 || c.logistics_cost <= 0),
+            "待维护商家编码",
+            "warning",
+            <AlertCircle className="h-5 w-5 text-yellow-500" />
+          )}
+          {renderCostTable(
+            costs.filter((c) => c.product_cost > 0 && c.logistics_cost > 0),
+            "已维护商家编码",
+            "success",
+            <CheckCircle2 className="h-5 w-5 text-green-500" />
+          )}
         </CardContent>
       </Card>
 
