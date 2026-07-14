@@ -622,10 +622,12 @@ def get_all_merchant_codes() -> pd.DataFrame:
         df = extract_merchant_codes_from_orders(store)
         if not df.empty:
             codes.update(df["merchant_code"].astype(str).tolist())
-    # 也包含手动映射中的商家编码
+    # 也包含手动映射中的商家编码（商品级 + 规格级）
     config = load_cost_config()
     mapping = load_global_product_mapping(config)
     codes.update(str(v) for v in mapping.values() if v)
+    style_mapping = config.get(GLOBAL_STYLE_MAP_KEY, {})
+    codes.update(str(v) for v in style_mapping.values() if v)
     global_costs = load_global_costs(config)
     codes.update(str(k) for k in global_costs.keys() if k)
 

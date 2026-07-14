@@ -284,12 +284,21 @@ def import_cost_csv(store_name: str, file_bytes: bytes) -> Dict[str, Any]:
 def get_global_costs() -> List[Dict[str, Any]]:
     cfg = load_cost_config()
     mapping = load_global_product_mapping(cfg)
-    # 尝试给商品名称为空的成本记录补全名称
+    style_mapping = cfg.get("global_style_merchant_map", {})
+
+    # 收集所有映射到的商家编码，并建立 code -> 商品名称 的初始映射
     code_to_name: Dict[str, str] = {}
+    all_mapped_codes: Dict[str, str] = {}
     for pid, code in mapping.items():
+        all_mapped_codes[pid] = code
         if code not in code_to_name:
             code_to_name[code] = ""
-    # 从订单中查找商品名称
+    for style_key, code in style_mapping.items():
+        all_mapped_codes[style_key] = code
+        if code not in code_to_name:
+            code_to_name[code] = ""
+
+    # 从订单中查找商品名称（按商品级 + 规格级）
     from storage import list_available_stores, list_available_dates, load_daily_orders
     for store in list_available_stores() or []:
         for d in list_available_dates(store):
@@ -301,7 +310,11 @@ def get_global_costs() -> List[Dict[str, Any]]:
                     pid = str(r.get("product_id") or "").strip()
                     if pid.endswith(".0"):
                         pid = pid[:-2]
-                    code = mapping.get(pid)
+                    sid = str(r.get("style_id") or "").strip()
+                    if sid.endswith(".0"):
+                        sid = sid[:-2]
+                    style_key = f"{pid}::{sid}" if sid else pid
+                    code = style_mapping.get(style_key) if sid else mapping.get(pid)
                     if code and not code_to_name.get(code):
                         pname = str(r.get("product_name") or "").strip()
                         if pname:
@@ -310,18 +323,33 @@ def get_global_costs() -> List[Dict[str, Any]]:
                 continue
 
     rows = []
+    existing_codes = set()
     for rec in list_global_cost_rows(cfg):
+        code = rec["merchant_code"]
+        existing_codes.add(code)
         pname = rec.get("product_name", "")
         if not pname:
-            pname = code_to_name.get(rec["merchant_code"], "")
+            pname = code_to_name.get(code, "")
             if pname:
-                cfg["global_merchant_costs"][rec["merchant_code"]]["product_name"] = pname
+                cfg["global_merchant_costs"][code]["product_name"] = pname
         rows.append({
-            "merchant_code": rec["merchant_code"],
+            "merchant_code": code,
             "product_name": pname,
             "product_cost": float(rec.get("product_cost", 0) or 0),
             "logistics_cost": float(rec.get("logistics_cost", 0) or 0),
         })
+
+    # 已映射但还没有成本记录的编码自动补一条成本记录，方便用户维护
+    for code, name in code_to_name.items():
+        if code and code not in existing_codes:
+            cfg = save_global_cost(cfg, code, product_name=name or "")
+            rows.append({
+                "merchant_code": code,
+                "product_name": name,
+                "product_cost": 0.0,
+                "logistics_cost": 0.0,
+            })
+
     if code_to_name:
         save_cost_config(cfg)
     return rows
