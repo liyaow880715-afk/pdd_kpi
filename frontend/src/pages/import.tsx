@@ -1,0 +1,156 @@
+import { useEffect, useState } from "react"
+import { Upload, Trash2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select } from "@/components/ui/select"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { getStores, importData, getRecords, deleteRecord, type Store, type ImportRecord } from "@/api/client"
+
+export function ImportPage() {
+  const [stores, setStores] = useState<Store[]>([])
+  const [records, setRecords] = useState<ImportRecord[]>([])
+  const [storeName, setStoreName] = useState("")
+  const [importDate, setImportDate] = useState(new Date().toISOString().split("T")[0])
+  const [promoFile, setPromoFile] = useState<File | null>(null)
+  const [orderFile, setOrderFile] = useState<File | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState("")
+
+  useEffect(() => {
+    getStores().then(setStores)
+    fetchRecords()
+  }, [])
+
+  const fetchRecords = async () => {
+    const data = await getRecords()
+    setRecords(data)
+  }
+
+  const handleImport = async () => {
+    if (!storeName || !promoFile || !orderFile) {
+      setMessage("请填写完整信息并上传两个文件")
+      return
+    }
+    setLoading(true)
+    setMessage("")
+    try {
+      const formData = new FormData()
+      formData.append("store_name", storeName)
+      formData.append("import_date", importDate)
+      formData.append("promo_file", promoFile)
+      formData.append("order_file", orderFile)
+      const res = await importData(formData)
+      setMessage(`导入成功：商品 ${res.product_rows} 行，样式 ${res.style_rows} 行，订单 ${res.order_rows} 行`)
+      setPromoFile(null)
+      setOrderFile(null)
+      fetchRecords()
+    } catch (err: any) {
+      setMessage(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDelete = async (storeName: string, date: string) => {
+    if (!confirm("确定删除该日数据？")) return
+    try {
+      await deleteRecord(storeName, date)
+      fetchRecords()
+    } catch (err: any) {
+      setMessage(err.message)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-2xl font-bold">数据导入</h2>
+      {message && (
+        <div className={`text-sm p-3 rounded-md ${message.includes("成功") ? "bg-green-100 text-green-800" : "bg-destructive/10 text-destructive"}`}>
+          {message}
+        </div>
+      )}
+      <Card>
+        <CardHeader>
+          <CardTitle>导入每日数据</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>店铺</Label>
+              <Select value={storeName} onChange={(e) => setStoreName(e.target.value)}>
+                <option value="">选择店铺</option>
+                {stores.map((s) => (
+                  <option key={s.id} value={s.name}>
+                    {s.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>日期</Label>
+              <Input type="date" value={importDate} onChange={(e) => setImportDate(e.target.value)} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>推广数据 Excel</Label>
+              <Input type="file" accept=".xls,.xlsx" onChange={(e) => setPromoFile(e.target.files?.[0] || null)} />
+            </div>
+            <div className="space-y-2">
+              <Label>订单数据 CSV</Label>
+              <Input type="file" accept=".csv" onChange={(e) => setOrderFile(e.target.files?.[0] || null)} />
+            </div>
+          </div>
+          <Button onClick={handleImport} disabled={loading}>
+            <Upload className="h-4 w-4 mr-1" /> {loading ? "导入中..." : "开始导入"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>导入历史</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>日期</TableHead>
+                <TableHead>店铺</TableHead>
+                <TableHead>商品/样式/订单</TableHead>
+                <TableHead>文件名</TableHead>
+                <TableHead className="text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {records.map((r) => (
+                <TableRow key={`${r.store_name}-${r.date}`}>
+                  <TableCell>{r.date}</TableCell>
+                  <TableCell>{r.store_name}</TableCell>
+                  <TableCell>{r.product_rows} / {r.style_rows} / {r.order_rows}</TableCell>
+                  <TableCell className="text-xs max-w-xs truncate">
+                    {r.promo_file} / {r.order_file}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="sm" onClick={() => handleDelete(r.store_name, r.date)}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {records.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                    暂无导入记录
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
