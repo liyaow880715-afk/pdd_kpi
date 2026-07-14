@@ -317,7 +317,7 @@ export function MetricsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>趋势细分</CardTitle>
-                <CardDescription>按主题拆分的多维度走势（与总览 KPI 隐藏状态联动）</CardDescription>
+                <CardDescription>按主题拆分的多维度走势（点击上方标签可单独显示/隐藏折线）</CardDescription>
               </CardHeader>
               <CardContent className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                 {[
@@ -382,26 +382,16 @@ export function MetricsPage() {
                       { key: "gross_margin_rate", name: "毛利率", color: "#3b82f6", unit: "%" },
                     ],
                   },
-                ].map((chart) => {
-                  const visibleMetrics = chart.metrics.filter((m) => !hiddenKpis.has(m.key))
-                  if (visibleMetrics.length === 0) {
-                    return (
-                      <div key={chart.title} className="rounded-md border p-4 space-y-2">
-                        <h3 className="text-sm font-semibold">{chart.title}</h3>
-                        <p className="text-xs text-muted-foreground">该分组所有指标已在总览 KPI 中隐藏</p>
-                      </div>
-                    )
-                  }
-                  return (
-                    <MetricLineChart
-                      key={chart.title}
-                      title={chart.title}
-                      description={chart.description}
-                      data={trend}
-                      metrics={visibleMetrics}
-                    />
-                  )
-                })}
+                ].map((chart) => (
+                  <MetricLineChart
+                    key={chart.title}
+                    title={chart.title}
+                    description={chart.description}
+                    data={trend}
+                    metrics={chart.metrics}
+                    hiddenKeys={hiddenKpis}
+                  />
+                ))}
               </CardContent>
             </Card>
           </TabsContent>
