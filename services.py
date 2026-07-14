@@ -25,6 +25,8 @@ from cost_manager import (
     append_new_merchant_codes,
     import_costs_from_csv,
     export_costs_to_csv,
+    import_global_costs_from_csv,
+    export_global_costs_to_csv,
     set_product_merchant_mapping,
     load_product_merchant_mapping,
     list_global_cost_rows,
@@ -408,7 +410,7 @@ def load_trend_data(
         "promo_roi", "real_roi", "valid_order_gmv_roi",
         "ctr", "click_to_order_rate", "exposure_to_order_rate",
         "cpc", "cpm",
-        "promo_gmv_ratio", "valid_order_gmv_ratio", "promo_order_ratio",
+        "promo_gmv_ratio", "valid_order_gmv_ratio", "promo_order_ratio", "promo_cost_ratio",
         "refund_rate", "cancel_rate", "problem_rate",
         "refund_unshipped_rate", "refund_shipped_rate", "refund_received_rate",
         "refund_count", "cancel_count",
@@ -487,6 +489,16 @@ def export_cost_csv(store_name: str) -> str:
 def import_cost_csv(store_name: str, file_bytes: bytes) -> Dict[str, Any]:
     file_obj = io.BytesIO(file_bytes)
     count = import_costs_from_csv(store_name, file_obj)
+    return {"updated": count}
+
+
+def export_global_cost_csv(pending_only: bool = False) -> str:
+    return export_global_costs_to_csv(pending_only)
+
+
+def import_global_cost_csv(file_bytes: bytes) -> Dict[str, Any]:
+    file_obj = io.BytesIO(file_bytes)
+    count = import_global_costs_from_csv(file_obj)
     return {"updated": count}
 
 

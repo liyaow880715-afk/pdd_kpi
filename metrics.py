@@ -158,6 +158,9 @@ def compute_product_metrics(merged: pd.DataFrame) -> pd.DataFrame:
     df["valid_order_gmv_roi"] = df.apply(
         lambda r: safe_div(r["valid_order_gmv"], r["promo_spend"]), axis=1
     )
+    df["promo_cost_ratio"] = df.apply(
+        lambda r: safe_div(r["promo_spend"], r["valid_merchant_income"]) * 100, axis=1
+    )
 
     # 自然流量估算（基于全部订单）
     df["organic_orders"] = (df["order_count"] - df["promo_orders"]).clip(lower=0)
@@ -271,6 +274,7 @@ def compute_overall_kpis(metrics: pd.DataFrame) -> Dict[str, float]:
         "promo_gmv_ratio": safe_div(totals["promo_gmv"], totals["order_gmv"]) * 100,
         "valid_order_gmv_ratio": safe_div(totals["valid_order_gmv"], totals["order_gmv"]) * 100,
         "promo_order_ratio": safe_div(totals["promo_orders"], totals["order_count"]) * 100,
+        "promo_cost_ratio": safe_div(totals["promo_spend"], totals["valid_merchant_income"]) * 100,
         "exposure": totals["exposure"],
         "clicks": totals["clicks"],
         "order_count": totals["order_count"],

@@ -199,6 +199,22 @@ export async function mapProductToMerchantCode(productId: string, merchantCode: 
   return res.data
 }
 
+export async function exportGlobalCosts(pendingOnly = false) {
+  const res = await api.get(`/costs/global/export${pendingOnly ? "?pending_only=true" : ""}`, {
+    responseType: "blob",
+  })
+  return res.data as Blob
+}
+
+export async function importGlobalCosts(file: File) {
+  const formData = new FormData()
+  formData.append("file", file)
+  const res = await api.post("/costs/global/import", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  })
+  return res.data as { updated: number }
+}
+
 export async function getAiConfig() {
   const res = await api.get("/ai/config")
   return res.data

@@ -404,6 +404,71 @@ def export_costs_to_csv(store_name: Optional[str]) -> str:
     return df.to_csv(index=False, encoding="utf-8-sig")
 
 
+def export_global_costs_to_csv(pending_only: bool = False) -> str:
+    """导出全局成本配置为 CSV 字符串（UTF-8-sig，含 BOM）"""
+    rows = list_global_cost_rows()
+    if pending_only:
+        rows = [
+            r
+            for r in rows
+            if (r.get("product_cost") or 0) <= 0 or (r.get("logistics_cost") or 0) <= 0
+        ]
+    df = pd.DataFrame(rows, columns=["merchant_code", "product_name", "product_cost", "logistics_cost"])
+    df.columns = ["商家编码", "商品名称", "商品成本/件", "物流成本/件"]
+    return df.to_csv(index=False, encoding="utf-8-sig")
+
+
+def import_global_costs_from_csv(file_obj) -> int:
+    """从 CSV 导入全局成本配置"""
+    if hasattr(file_obj, "read"):
+        bytes_data = file_obj.read()
+        file_obj.seek(0)
+    else:
+        with open(file_obj, "rb") as f:
+            bytes_data = f.read()
+
+    df = None
+    for enc in ["utf-8-sig", "utf-8", "gbk", "gb18030"]:
+        try:
+            df = pd.read_csv(io.BytesIO(bytes_data), encoding=enc)
+            break
+        except Exception:
+            continue
+    if df is None:
+        raise ValueError("无法读取 CSV，请检查编码")
+
+    rename = {}
+    for col in df.columns:
+        norm = _normalize_cost_column_name(col)
+        if norm in ["merchant_code", "product_name", "product_cost", "logistics_cost"]:
+            rename[col] = norm
+    df = df.rename(columns=rename)
+
+    required = ["merchant_code", "product_cost", "logistics_cost"]
+    for col in required:
+        if col not in df.columns:
+            raise ValueError(f"CSV 缺少必要列：{col}")
+
+    cfg = load_cost_config()
+    count = 0
+    for _, rec in df.iterrows():
+        code = _normalize_code(rec.get("merchant_code"))
+        if not code:
+            continue
+        cfg = save_global_cost(
+            cfg,
+            merchant_code=code,
+            product_name=str(rec.get("product_name", "") or ""),
+            product_cost=pd.to_numeric(rec.get("product_cost", 0), errors="coerce") or 0,
+            logistics_cost=pd.to_numeric(rec.get("logistics_cost", 0), errors="coerce") or 0,
+        )
+        count += 1
+
+    if count:
+        save_cost_config(cfg)
+    return count
+
+
 def _normalize_cost_column_name(name: str) -> str:
     """识别导入 CSV 的列名"""
     name = str(name).strip().replace(" ", "").replace("(元)", "").replace("（元）", "")

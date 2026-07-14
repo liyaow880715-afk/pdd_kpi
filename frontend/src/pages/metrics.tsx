@@ -63,6 +63,7 @@ const kpiGroups = [
       { key: "valid_order_gmv_ratio", label: "有效 GMV 占比", unit: "%" },
       { key: "merchant_income", label: "商家实收", unit: "元" },
       { key: "valid_merchant_income", label: "有效商家实收", unit: "元" },
+      { key: "promo_cost_ratio", label: "推广费比", unit: "%" },
       { key: "order_count", label: "订单数" },
       { key: "valid_order_count", label: "有效订单数" },
     ],
@@ -329,6 +330,7 @@ export function MetricsPage() {
                       { key: "promo_gmv", name: "推广 GMV", color: "#3b82f6", unit: "元" },
                       { key: "order_gmv", name: "订单 GMV", color: "#22c55e", unit: "元" },
                       { key: "valid_order_gmv", name: "有效 GMV", color: "#8b5cf6", unit: "元" },
+                      { key: "promo_cost_ratio", name: "推广费比", color: "#f97316", unit: "%" },
                     ],
                   },
                   {

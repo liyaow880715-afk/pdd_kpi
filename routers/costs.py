@@ -77,6 +77,17 @@ def refresh_global_cost_codes():
     return services.refresh_global_cost_codes_service()
 
 
+@router.get("/global/export", response_class=PlainTextResponse)
+def export_global_costs(pending_only: bool = False):
+    return services.export_global_cost_csv(pending_only)
+
+
+@router.post("/global/import", response_model=Dict[str, Any])
+def import_global_costs(file: UploadFile = File(...)):
+    file_bytes = file.file.read()
+    return services.import_global_cost_csv(file_bytes)
+
+
 @router.get("/global/unmapped", response_model=List[Dict[str, Any]])
 def list_unmapped_products():
     return services.get_unmapped_products()

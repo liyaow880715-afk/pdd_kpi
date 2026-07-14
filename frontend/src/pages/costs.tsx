@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react"
-import { Save, RefreshCw, Link2, AlertCircle, CheckCircle2 } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { Save, RefreshCw, Link2, AlertCircle, CheckCircle2, Download, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -11,6 +11,8 @@ import {
   refreshGlobalCostCodes,
   getUnmappedProducts,
   mapProductToMerchantCode,
+  exportGlobalCosts,
+  importGlobalCosts,
   type Cost,
 } from "@/api/client"
 
@@ -30,6 +32,7 @@ export function CostsPage() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState("")
   const [mappingCodes, setMappingCodes] = useState<Record<string, string>>({})
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const fetchData = async () => {
     setLoading(true)
@@ -70,6 +73,41 @@ export function CostsPage() {
       setMessage(`已刷新商家编码，新增 ${res.added} 个`)
     } catch (err: any) {
       setMessage(err.message)
+    }
+  }
+
+  const handleExportPending = async () => {
+    try {
+      const blob = await exportGlobalCosts(true)
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `待维护商家编码_${new Date().toISOString().split("T")[0]}.csv`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+      setMessage("导出成功")
+    } catch (err: any) {
+      setMessage(err.message)
+    }
+  }
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const res = await importGlobalCosts(file)
+      await fetchData()
+      setMessage(`导入成功，更新 ${res.updated} 条`)
+    } catch (err: any) {
+      setMessage(err.message)
+    } finally {
+      e.target.value = ""
     }
   }
 
@@ -171,7 +209,20 @@ export function CostsPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>商家编码成本（全店铺通用）</CardTitle>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={handleExportPending} disabled={loading}>
+                <Download className="h-4 w-4 mr-1" /> 导出待维护
+              </Button>
+              <Button variant="outline" onClick={handleImportClick} disabled={loading}>
+                <Upload className="h-4 w-4 mr-1" /> 导入成本
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={handleImportFile}
+              />
               <Button variant="outline" onClick={handleRefresh} disabled={loading}>
                 <RefreshCw className="h-4 w-4 mr-1" /> 刷新编码
               </Button>
