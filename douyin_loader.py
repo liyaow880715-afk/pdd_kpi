@@ -159,9 +159,13 @@ def read_order_file(file_bytes: bytes, filename: str = "") -> pd.DataFrame:
     df["product_id"] = df.get("商品ID", "").astype(str)
     df["product_name"] = df.get("选购商品", "").astype(str)
     df["spec"] = df.get("商品规格", "").astype(str)
+    df["style_id"] = df.get("规格ID", "").astype(str) if "规格ID" in df.columns else df.get("style_id", "").astype(str) if "style_id" in df.columns else ""
+    df["merchant_code"] = df.get("商家编码", "").astype(str) if "商家编码" in df.columns else ""
     df["quantity"] = pd.to_numeric(df.get("商品数量", 0), errors="coerce").fillna(0)
     df["price"] = df.get("商品单价", 0).apply(_clean_number)
     df["amount"] = df.get("订单应付金额", 0).apply(_clean_number)
+    df["platform_subsidy"] = df.get("平台实际承担优惠金额", 0).apply(_clean_number)
+    df["actual_revenue"] = df["amount"] + df["platform_subsidy"]
     df["order_status"] = df.get("订单状态", "").astype(str)
     df["aftersale_status"] = df.get("售后状态", "").astype(str)
 
@@ -171,7 +175,7 @@ def read_order_file(file_bytes: bytes, filename: str = "") -> pd.DataFrame:
     df["order_date"] = df["order_time"].apply(_parse_date)
 
     return df[[
-        "order_id", "sub_order_id", "product_id", "product_name", "spec",
-        "quantity", "price", "amount", "order_status", "aftersale_status",
-        "order_time", "order_date",
+        "order_id", "sub_order_id", "product_id", "product_name", "spec", "style_id", "merchant_code",
+        "quantity", "price", "amount", "platform_subsidy", "actual_revenue",
+        "order_status", "aftersale_status", "order_time", "order_date",
     ]]

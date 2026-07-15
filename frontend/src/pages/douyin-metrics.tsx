@@ -24,6 +24,7 @@ const kpiGroups = [
       { key: "spend", label: "消耗", unit: "元" },
       { key: "gmv", label: "成交金额", unit: "元" },
       { key: "valid_gmv", label: "净成交金额", unit: "元" },
+      { key: "actual_revenue", label: "实际收入", unit: "元" },
       { key: "order_count", label: "订单数" },
       { key: "valid_order_count", label: "净订单数" },
       { key: "exposure", label: "曝光量" },
@@ -58,6 +59,7 @@ const productColumns = [
   { key: "spend", label: "消耗" },
   { key: "gmv", label: "成交金额" },
   { key: "valid_gmv", label: "净成交金额" },
+  { key: "actual_revenue", label: "实际收入" },
   { key: "order_count", label: "订单数" },
   { key: "valid_order_count", label: "净订单数" },
   { key: "exposure", label: "曝光量" },
@@ -198,6 +200,7 @@ export function DouyinMetricsPage() {
                       { key: "spend", name: "消耗", color: "#ef4444", unit: "元" },
                       { key: "gmv", name: "成交金额", color: "#3b82f6", unit: "元" },
                       { key: "valid_gmv", name: "净成交金额", color: "#22c55e", unit: "元" },
+                      { key: "actual_revenue", name: "实际收入", color: "#f97316", unit: "元" },
                     ],
                   },
                   {
@@ -265,7 +268,7 @@ export function DouyinMetricsPage() {
                           {productColumns.map((col) => {
                             const v = row[col.key]
                             const isRate = col.label.includes("%") || col.key.includes("rate") || col.key.includes("roi")
-                            const isMoney = ["spend", "gmv", "valid_gmv", "refund_amount", "total_cost", "gross_profit", "profit_loss"].includes(col.key)
+                            const isMoney = ["spend", "gmv", "valid_gmv", "actual_revenue", "refund_amount", "total_cost", "gross_profit", "profit_loss"].includes(col.key)
                             return (
                               <TableCell key={col.key} className="text-xs whitespace-nowrap">
                                 {col.key === "product_name" ? (

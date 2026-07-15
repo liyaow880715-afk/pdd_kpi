@@ -263,7 +263,7 @@ export async function sendWecomReport(reportDate: string, config: Record<string,
 // ---------- 抖音 ----------
 
 export type DouyinCost = {
-  product_id: string
+  merchant_code: string
   product_name: string
   product_cost: number
   logistics_cost: number
@@ -361,12 +361,20 @@ export async function getDouyinCosts() {
 }
 
 export async function saveDouyinCosts(costs: DouyinCost[]) {
-  const res = await api.post("/douyin/costs", costs)
+  const res = await api.post("/douyin/costs", { costs })
   return res.data
 }
 
-export async function exportDouyinCosts() {
-  const res = await api.get("/douyin/costs/export", { responseType: "blob" })
+export async function refreshDouyinCostCodes() {
+  const res = await api.post<{ added: number }>("/douyin/costs/refresh")
+  return res.data
+}
+
+export async function exportDouyinCosts(pendingOnly: boolean = false) {
+  const res = await api.get("/douyin/costs/export", {
+    params: pendingOnly ? { pending_only: true } : {},
+    responseType: "blob",
+  })
   return res.data as Blob
 }
 
@@ -379,10 +387,37 @@ export async function importDouyinCosts(file: File) {
   return res.data as { updated: number }
 }
 
-export async function getDouyinUnmappedProducts(startDate: string, endDate: string, storeName?: string) {
-  const params: Record<string, any> = { start_date: startDate, end_date: endDate }
+export interface DouyinUnmappedRow {
+  product_id: string
+  product_name: string
+  style_id: string
+  style_name: string
+  store_name: string
+  order_count: number
+  first_date: string
+}
+
+export async function getDouyinUnmappedProducts(startDate?: string, endDate?: string, storeName?: string) {
+  const params: Record<string, any> = {}
+  if (startDate) params.start_date = startDate
+  if (endDate) params.end_date = endDate
   if (storeName) params.store_name = storeName
-  const res = await api.get<{ product_id: string; product_name: string }[]>("/douyin/costs/unmapped", { params })
+  const res = await api.get<DouyinUnmappedRow[]>("/douyin/costs/unmapped", { params })
+  return res.data
+}
+
+export async function mapDouyinProductToMerchantCode(
+  productId: string,
+  merchantCode: string,
+  styleId?: string,
+  productName?: string
+) {
+  const res = await api.post("/douyin/costs/map", {
+    product_id: productId,
+    merchant_code: merchantCode,
+    style_id: styleId,
+    product_name: productName,
+  })
   return res.data
 }
 

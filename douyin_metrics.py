@@ -26,6 +26,8 @@ def compute_overall_kpis(metrics: pd.DataFrame) -> Dict[str, Any]:
         "refund_orders": float(metrics["refund_orders"].sum()),
         "refund_amount": float(metrics["refund_amount"].sum()),
     }
+    if "actual_revenue" in metrics.columns:
+        totals["actual_revenue"] = float(metrics["actual_revenue"].sum())
 
     totals["roi"] = safe_div(totals["gmv"], totals["spend"])
     totals["valid_roi"] = safe_div(totals["valid_gmv"], totals["spend"])
@@ -50,6 +52,8 @@ def build_product_metrics_from_orders(orders: pd.DataFrame, date: str) -> pd.Dat
 
     # 金额/数量转数值
     df["amount"] = pd.to_numeric(df.get("amount", 0), errors="coerce").fillna(0)
+    df["platform_subsidy"] = pd.to_numeric(df.get("platform_subsidy", 0), errors="coerce").fillna(0)
+    df["actual_revenue"] = pd.to_numeric(df.get("actual_revenue", 0), errors="coerce").fillna(0)
     df["quantity"] = pd.to_numeric(df.get("quantity", 0), errors="coerce").fillna(0)
 
     grouped = (
@@ -57,6 +61,7 @@ def build_product_metrics_from_orders(orders: pd.DataFrame, date: str) -> pd.Dat
         .agg(
             product_name=("product_name", lambda x: x.dropna().astype(str).iloc[0] if len(x) else ""),
             gmv=("amount", "sum"),
+            actual_revenue=("actual_revenue", "sum"),
             order_count=("product_id", "size"),
         )
         .reset_index()
@@ -74,7 +79,7 @@ def build_product_metrics_from_orders(orders: pd.DataFrame, date: str) -> pd.Dat
     return grouped[[
         "product_id", "product_name", "date",
         "spend", "gmv", "valid_gmv", "order_count", "valid_order_count",
-        "exposure", "clicks", "refund_orders", "refund_amount",
+        "exposure", "clicks", "refund_orders", "refund_amount", "actual_revenue",
     ]]
 
 
@@ -88,7 +93,7 @@ def aggregate_product_metrics(daily_list: List[pd.DataFrame]) -> pd.DataFrame:
 
     sum_cols = [
         "spend", "gmv", "valid_gmv", "order_count", "valid_order_count",
-        "exposure", "clicks", "refund_orders", "refund_amount",
+        "exposure", "clicks", "refund_orders", "refund_amount", "actual_revenue",
     ]
     agg = {c: "sum" for c in sum_cols if c in combined.columns}
     agg["product_name"] = lambda x: x.dropna().astype(str).iloc[0] if len(x) else ""

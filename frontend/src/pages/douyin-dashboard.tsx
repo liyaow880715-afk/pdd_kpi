@@ -17,6 +17,7 @@ const productSumKeys = [
   "spend",
   "gmv",
   "valid_gmv",
+  "actual_revenue",
   "order_count",
   "valid_order_count",
   "exposure",
@@ -93,6 +94,7 @@ const trendCharts = [
       { key: "spend", name: "消耗", color: "#ef4444", unit: "元" },
       { key: "gmv", name: "成交金额", color: "#3b82f6", unit: "元" },
       { key: "valid_gmv", name: "净成交金额", color: "#22c55e", unit: "元" },
+      { key: "actual_revenue", name: "实际收入", color: "#f97316", unit: "元" },
     ],
   },
   {
@@ -218,6 +220,7 @@ export function DouyinDashboardPage() {
         <KpiCard label="总消耗" value={kpis.spend} unit="元" />
         <KpiCard label="成交金额" value={kpis.gmv} unit="元" />
         <KpiCard label="净成交金额" value={kpis.valid_gmv} unit="元" />
+        <KpiCard label="实际收入" value={kpis.actual_revenue} unit="元" />
         <KpiCard label="订单数" value={kpis.order_count} />
         <KpiCard label="净订单数" value={kpis.valid_order_count} />
         <KpiCard label="ROI" value={kpis.roi} />
@@ -266,6 +269,7 @@ export function DouyinDashboardPage() {
                     { key: "spend", label: "消耗" },
                     { key: "gmv", label: "成交金额" },
                     { key: "valid_gmv", label: "净成交金额" },
+                    { key: "actual_revenue", label: "实际收入" },
                     { key: "order_count", label: "订单数" },
                     { key: "valid_order_count", label: "净订单数" },
                     { key: "roi", label: "ROI" },
@@ -289,6 +293,7 @@ export function DouyinDashboardPage() {
                   <th className="text-right px-3 py-2">消耗</th>
                   <th className="text-right px-3 py-2">成交金额</th>
                   <th className="text-right px-3 py-2">净成交</th>
+                  <th className="text-right px-3 py-2">实际收入</th>
                   <th className="text-right px-3 py-2">ROI</th>
                   <th className="text-right px-3 py-2">点击率</th>
                   <th className="text-right px-3 py-2">成本</th>
@@ -303,6 +308,7 @@ export function DouyinDashboardPage() {
                     <td className="text-right px-3 py-2">{formatNumber(row.spend)}</td>
                     <td className="text-right px-3 py-2">{formatNumber(row.gmv)}</td>
                     <td className="text-right px-3 py-2">{formatNumber(row.valid_gmv)}</td>
+                    <td className="text-right px-3 py-2">{formatNumber(row.actual_revenue)}</td>
                     <td className="text-right px-3 py-2">{formatNumber(row.roi)}</td>
                     <td className="text-right px-3 py-2">{formatNumber(row.ctr)}%</td>
                     <td className="text-right px-3 py-2">{formatNumber(row.total_cost)}</td>
@@ -312,7 +318,7 @@ export function DouyinDashboardPage() {
                 ))}
                 {productMetrics.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="text-center text-muted-foreground py-8">
+                    <td colSpan={10} className="text-center text-muted-foreground py-8">
                       暂无数据
                     </td>
                   </tr>

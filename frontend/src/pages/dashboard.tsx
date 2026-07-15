@@ -146,7 +146,7 @@ export function DashboardPage() {
   const [activeTab, setActiveTab] = useState("overview")
 
   useEffect(() => {
-    getStores().then((s) => {
+    getStores("pdd").then((s) => {
       setStores(s)
       setSelectedStores(s.map((x) => x.name))
     })

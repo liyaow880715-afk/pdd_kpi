@@ -42,6 +42,50 @@ def _json_safe(obj: Any) -> Any:
     return obj
 
 
+def _compute_actual_revenue_from_orders(orders_df: pd.DataFrame) -> pd.DataFrame:
+    """按商品汇总订单中的实际收入（订单应付金额 + 平台实际承担优惠金额）。"""
+    if orders_df is None or orders_df.empty or "actual_revenue" not in orders_df.columns:
+        return pd.DataFrame(columns=["product_id", "actual_revenue"])
+    rev = orders_df.groupby("product_id")["actual_revenue"].sum().reset_index()
+    rev["actual_revenue"] = pd.to_numeric(rev["actual_revenue"], errors="coerce").fillna(0)
+    return rev
+
+
+def _merge_actual_revenue(product_df: pd.DataFrame, orders_df: pd.DataFrame) -> pd.DataFrame:
+    """将订单计算出的实际收入合并到商品指标中。"""
+    if product_df is None or product_df.empty:
+        return product_df
+    df = product_df.copy()
+    rev = _compute_actual_revenue_from_orders(orders_df)
+    if rev.empty:
+        if "actual_revenue" not in df.columns:
+            df["actual_revenue"] = 0.0
+        return df
+    if "actual_revenue" in df.columns:
+        df = df.drop(columns=["actual_revenue"])
+    df = df.merge(rev, on="product_id", how="left")
+    df["actual_revenue"] = df["actual_revenue"].fillna(0)
+    return df
+
+
+def _merge_merchant_code_from_orders(product_df: pd.DataFrame, orders_df: pd.DataFrame) -> pd.DataFrame:
+    """把订单中的商家编码合并到商品指标（取每个商品出现次数最多的编码）。"""
+    if product_df is None or product_df.empty:
+        return product_df
+    df = product_df.copy()
+    if orders_df is None or orders_df.empty or "merchant_code" not in orders_df.columns:
+        return df
+    mc = orders_df[orders_df["merchant_code"].astype(str).str.strip() != ""]
+    if mc.empty:
+        return df
+    mode = mc.groupby("product_id")["merchant_code"].agg(lambda x: x.mode().iloc[0] if not x.mode().empty else "").reset_index()
+    if "merchant_code" in df.columns:
+        df = df.drop(columns=["merchant_code"])
+    df = df.merge(mode, on="product_id", how="left")
+    df["merchant_code"] = df["merchant_code"].fillna("").astype(str)
+    return df
+
+
 def import_douyin_daily_data(
     store_name: str,
     import_date: Optional[datetime.date] = None,
@@ -130,12 +174,14 @@ def load_douyin_analysis(
 
     product_dfs = []
     for d in dates:
-        p, _ = load_daily_data(store_name, d)
+        p, o = load_daily_data(store_name, d)
+        p = _merge_actual_revenue(p, o)
+        p = _merge_merchant_code_from_orders(p, o)
         if not p.empty:
             product_dfs.append(p)
 
     product_metrics = aggregate_product_metrics(product_dfs)
-    product_metrics = apply_costs_to_metrics(product_metrics)
+    product_metrics = apply_costs_to_metrics(product_metrics, store_name=store_name)
     overall = compute_overall_kpis(product_metrics)
     cost_kpis = compute_cost_kpis(product_metrics)
 
@@ -157,8 +203,10 @@ def load_douyin_trend(
 
     rows = []
     for d in dates:
-        p, _ = load_daily_data(store_name, d)
-        p_cost = apply_costs_to_metrics(p)
+        p, o = load_daily_data(store_name, d)
+        p = _merge_actual_revenue(p, o)
+        p = _merge_merchant_code_from_orders(p, o)
+        p_cost = apply_costs_to_metrics(p, store_name=store_name)
         kpis = compute_overall_kpis(p)
         cost = compute_cost_kpis(p_cost)
         row = {"date": d, **kpis, **cost}
@@ -184,20 +232,22 @@ def get_douyin_dashboard_summary(
     for store in store_names:
         for d in list_available_dates(store):
             if start_s <= d <= end_s:
-                p, _ = load_daily_data(store, d)
+                p, o = load_daily_data(store, d)
+                p = _merge_actual_revenue(p, o)
+                p = _merge_merchant_code_from_orders(p, o)
                 if not p.empty:
                     all_product_dfs.append(p)
                     daily_dfs.setdefault(d, []).append(p)
 
     combined = pd.concat(all_product_dfs, ignore_index=True) if all_product_dfs else pd.DataFrame()
-    combined_cost = apply_costs_to_metrics(combined)
+    combined_cost = apply_costs_to_metrics(combined, store_name=None)
     overall = compute_overall_kpis(combined)
     cost_kpis = compute_cost_kpis(combined_cost)
 
     trend_summary = []
     for d in sorted(daily_dfs.keys()):
         day_df = pd.concat(daily_dfs[d], ignore_index=True)
-        day_cost = apply_costs_to_metrics(day_df)
+        day_cost = apply_costs_to_metrics(day_df, store_name=None)
         kpis = compute_overall_kpis(day_df)
         cost = compute_cost_kpis(day_cost)
         trend_summary.append(_json_safe({"date": d, **kpis, **cost}))

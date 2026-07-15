@@ -1,76 +1,110 @@
-# 拼多多推广数据 BI 看板
+# 多平台电商 BI 看板
 
-一个本地浏览器版 BI 工具，支持每日导入拼多多「推广数据 `.xls/.xlsx`」和「订单数据 `.csv`」，自动按 **商品ID** 与 **样式ID** 匹配，计算真实 ROI、退款率、自然流量占比等核心指标，并接入 Kimi / OpenAI API 生成 AI 分析结论。
+拼多多 / 抖音 / 天猫（占位） 的推广与订单数据 BI 分析工具。
+
+后端使用 **Python + FastAPI + pandas**，前端使用 **Vite + React + TypeScript + Tailwind CSS**，通过浏览器访问；支持多店铺、多账号权限、AI 分析结论与企业微信日报推送。
+
+---
 
 ## 功能特性
 
-- 📤 拖拽上传推广 Excel 与订单 CSV
-- 🏪 **多店铺支持**：按店铺名称分别导入、存储、筛选和对比
-- 🔗 自动按 `商品ID` + `样式ID` 匹配推广与订单数据
-- 📊 核心 KPI 看板：花费、GMV、**有效 ROI**、退款率、点击率等
-- 🛒 商品级明细排行与对比
-- 🎨 样式/规格级分析（哪个 SKU 最赚钱/最亏钱）
-- 🤖 AI 智能洞察（支持 Kimi / OpenAI / 任意兼容 API）
-- 📥 一键导出处理后的 CSV
-- 📈 多日数据持久化，支持历史趋势对比
+- 📊 **多平台切换**：拼多多、抖音、天猫（占位）独立数据与菜单
+- 🏪 **多店铺隔离**：每个平台下可创建多个店铺，数据分开存储、分开筛选
+- 📤 **数据导入**：拖拽上传推广 Excel / 订单 CSV，支持单日文件与全数据文件自动按日期拆分
+- 📈 **核心 KPI 看板**：
+  - 拼多多：推广花费、GMV、真实 ROI、退款率、点击率、商家实收、自然流量占比等
+  - 抖音：消耗、成交金额、净成交金额、**实际收入**（订单应付金额 + 平台实际承担优惠金额）、ROI、点击率、转化率等
+- 🛒 **商品级 / 规格级明细**：排行、对比、趋势图、导出 CSV
+- 💰 **成本管理**：按「商家编码」维护商品成本/物流成本，支持刷新编码、未映射商品绑定、导入导出、待维护导出
+- 🤖 **AI 智能洞察**：支持 Kimi / OpenAI / 任意兼容 API，自动生成平台专属分析结论
+- 📲 **企业微信日报**：按店铺汇总后推送到指定机器人
+- 👥 **账号权限**：主账号 + 子账号，支持按页面与店铺授权
+- 🚀 **自动部署**：GitHub Actions 推送 `main`/`master` 后自动构建前端并部署到服务器
 
-## 快速启动
+---
 
-### 方式一：双击启动（推荐）
+## 技术栈
 
-直接双击项目目录下的 `start.bat`，首次会自动创建虚拟环境并安装依赖。
+| 层级 | 技术 |
+|---|---|
+| 后端 | Python 3.12、FastAPI、Pydantic、pandas、numpy、PyJWT、bcrypt |
+| 前端 | Vite、React 19、TypeScript、Tailwind CSS 3、shadcn-style 组件 |
+| 数据存储 | Parquet + JSON（本地文件），按平台与店铺隔离 |
+| 部署 | uvicorn + systemd + Nginx + GitHub Actions |
 
-> 首次运行 Streamlit 可能会在终端询问邮箱，直接按回车跳过即可，之后不会再出现。
+---
 
-### 方式二：命令行启动
+## 快速启动（本地开发）
+
+### 1. 安装后端依赖
 
 ```bash
 cd pdd_bi_dashboard
 python -m venv venv
 venv\Scripts\pip install -r requirements.txt
-venv\Scripts\streamlit run app.py
 ```
 
-### 方式三：PowerShell 启动
+### 2. 启动后端
 
-若 `start.bat` 在你的系统上有乱码问题，可右键 `start.ps1` 选择「使用 PowerShell 运行」，或在 PowerShell 中执行：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File start.ps1
+```bash
+venv\Scripts\python -m uvicorn api:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-启动后，浏览器会自动打开 `http://localhost:8501`。
+### 3. 启动前端
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+浏览器访问 `http://localhost:5173`，默认账号 `admin` / `admin123`。
+
+---
+
+## 线上部署
+
+项目已配置 GitHub Actions（`.github/workflows/deploy.yml`），推送 `main`/`master` 分支后自动：
+
+1. 使用 Node.js 构建前端
+2. 将 `frontend/dist/` 上传到服务器
+3. 服务器执行 `git pull`、安装依赖、清理 `__pycache__`、重启 `pdd_kpi.service`、重载 Nginx
+
+依赖 Secrets：`SERVER_HOST`、`SERVER_USER`、`SERVER_SSH_KEY`。
+
+---
 
 ## 使用步骤
 
-1. 填写「店铺名称」（多店铺时用于区分数据）
-2. 上传「推广数据」Excel 文件
-3. 上传「订单数据」CSV 文件
-4. 确认或修改数据日期（程序会尝试从文件名自动识别）
-5. 可选：填写 Kimi / OpenAI API Key 以启用 AI 深度分析
-6. 点击「🚀 开始分析」
-7. 在标签页中查看核心指标、商品分析、样式分析、AI 洞察、导出数据
+1. 登录后，顶部导航切换平台（拼多多 / 抖音）
+2. 进入「导入」页面，选择店铺、上传推广 Excel 与订单 CSV
+3. 日期留空时，程序会自动拆分文件内的所有日期
+4. 进入「总览」查看汇总 KPI 与趋势
+5. 进入「指标」查看单店详情、商品明细、规格分析
+6. 进入「成本」维护商家编码对应的商品成本 / 物流成本
+7. 进入「AI」配置 API Key 并生成分析结论
+8. 进入「企微」配置机器人并发送日报
+
+---
 
 ## 文件格式说明
 
-### 推广数据
+### 拼多多推广数据
 
-支持 `.xls` 或 `.xlsx`，需包含以下关键列：
+支持 `.xls` / `.xlsx`，关键列：
 
 | 关键列 | 说明 |
 |---|---|
 | 商品ID / 商品id | 商品唯一标识 |
 | 成交花费(元) / 总花费(元) | 推广花费 |
-| 交易额(元) / 成交金额(元) | 推广带来的 GMV |
+| 交易额(元) / 成交金额(元) | 推广 GMV |
 | 成交笔数 | 推广成交订单数 |
 | 曝光量 | 曝光次数 |
 | 点击量 | 点击次数 |
 
-若推广数据中也包含 `样式ID` / `商品规格` 列，则会按样式维度匹配。
+### 拼多多订单数据
 
-### 订单数据
-
-支持 `.csv`，需包含以下关键列：
+支持 `.csv`，关键列：
 
 | 关键列 | 说明 |
 |---|---|
@@ -83,66 +117,131 @@ powershell -ExecutionPolicy Bypass -File start.ps1
 | 商家实收金额(元) | 商家实际收入 |
 | 商品数量(件) | 购买数量 |
 
+### 抖音推广数据
+
+支持乘方推广 / 全域推广 Excel，关键列包括：
+
+- 商品ID、商品名称、日期
+- 整体消耗 / 综合成本
+- 整体成交金额 / 净成交金额
+- 整体成交订单数 / 净成交订单数
+- 整体展示次数、整体点击次数
+- 1小时内退款订单数 / 1小时内退款金额（可选）
+
+### 抖音订单数据
+
+支持 `.csv`，关键列：
+
+| 关键列 | 说明 |
+|---|---|
+| 商品ID | 商品唯一标识 |
+| 选购商品 | 商品名称 |
+| 商品规格 | 规格名称 |
+| 商品数量 | 购买数量 |
+| 商品单价 | 单价 |
+| 订单应付金额 | 买家应付金额 |
+| 平台实际承担优惠金额 | 平台补贴（用于计算实际收入）|
+| 商家编码 | 成本管理用（可选）|
+| 订单状态 / 售后状态 | 用于退款/取消判定 |
+| 订单提交时间 / 下单时间 | 用于拆分日期 |
+
+> 抖音实际收入 = 订单应付金额 + 平台实际承担优惠金额
+
+---
+
 ## AI 配置
 
-在左侧侧边栏配置：
+在「AI」页面配置：
 
-- **API Key**：你的 Kimi / OpenAI / 兼容 API Key
+- **API Key**：Kimi / OpenAI / 兼容 API Key
 - **Base URL**：
-  - Kimi coding（默认）: `https://api.kimi.com/coding/v1`
+  - Kimi coding: `https://api.kimi.com/coding/v1`
   - Moonshot: `https://api.moonshot.cn/v1`
   - OpenAI: `https://api.openai.com/v1`
-- **模型名称**：
-  - Kimi coding: `kimi-coding`
-  - Moonshot: `moonshot-v1-8k`
-  - OpenAI: `gpt-4o-mini` 或 `gpt-4o`
-- **Temperature**：文本生成温度，默认 `1.0`
-- **Reasoning Effort**：推理深度，默认 `low`（仅对 kimi-coding / o1 / o3 / o4 等推理模型生效）
+- **模型名称**：如 `kimi-coding`、`moonshot-v1-8k`、`gpt-4o-mini`
+- **Temperature**：默认 `1.0`
 
-配置好后点击「💾 保存 AI 配置」，下次启动会自动读取。然后点击「🧪 测试连接」验证 API 是否可用。
+配置好后点击「测试连接」验证。未配置 API Key 时，系统会使用内置规则生成简要结论。
 
-> ⚠️ API Key 以明文保存在本机 `data/config.json`，不会上传，仅供本机使用。
+> API Key 保存在本机 `data/config.json`，不会上传。
 
-如果未填写 API Key，系统会自动使用内置规则生成洞察结论。
+---
+
+## 成本管理
+
+成本按「商家编码」维护，全店铺通用：
+
+1. 点击「刷新编码」从订单中自动提取商家编码
+2. 在「待维护商家编码」中填写商品成本 / 物流成本，点击「保存」
+3. 若订单中没有商家编码，可在「未映射商家编码的商品」中把 `product_id` / 规格绑定到商家编码
+4. 支持导入导出 CSV，也可单独导出「待维护商家编码」清单
+
+成本会按 `有效订单数` 计算总成本，并结合 `有效 GMV` 计算毛利、毛利率、盈亏、盈亏率。
+
+---
 
 ## 数据存储
 
-处理后的数据会保存在项目目录下的 `data/processed/` 中：
+数据按平台隔离保存在项目目录下：
 
-- `product_YYYY-MM-DD.parquet`：商品级指标
-- `style_YYYY-MM-DD.parquet`：样式级指标
-- `orders_YYYY-MM-DD.parquet`：处理后的订单明细
-- `data/meta.json`：导入记录元数据
+- `data/processed/{店铺}/`：拼多多商品指标、样式指标、订单明细
+- `data/processed_douyin/{店铺}/`：抖音商品指标、订单明细
+- `data/costs.json`：拼多多成本配置
+- `data/douyin_costs.json`：抖音成本配置
+- `data/config.json`：AI 配置、用户认证等
+- `data/stores.json`：店铺注册信息（含 platform 字段）
+
+---
 
 ## 项目结构
 
 ```
 pdd_bi_dashboard/
-├── app.py                 # Streamlit 主入口
-├── data_loader.py         # 文件读取与列名标准化
-├── data_processor.py      # 推广与订单数据匹配
-├── metrics.py             # KPI 计算
-├── ai_analyzer.py         # AI 提示词与规则化洞察
-├── api_client.py          # LLM API 调用客户端
-├── config_manager.py      # 本地配置管理（API Key 等）
-├── storage.py             # 本地数据持久化（支持多店铺）
-├── dashboard.py           # 看板 UI 组件
-├── .streamlit/
-│   └── config.toml        # Streamlit 配置（主题、禁用统计）
+├── api.py                      # FastAPI 主入口
+├── api_client.py               # LLM API 调用客户端
+├── app.py / dashboard.py       # 旧版 Streamlit 入口（保留兼容）
+├── data_loader.py              # 拼多多文件读取
+├── data_processor.py           # 拼多多推广与订单匹配
+├── metrics.py                  # 拼多多 KPI 计算
+├── cost_manager.py             # 拼多多成本管理
+├── storage.py                  # 拼多多数据持久化
+├── ai_analyzer.py              # 拼多多 AI 提示词
+├── report_builder.py / wecom.py # 拼多多企微日报
+├── store_manager.py            # 店铺注册与权限
+├── auth.py                     # JWT 认证与权限中间件
+├── routers/                    # FastAPI 路由
+│   ├── auth.py / users.py / stores.py
+│   ├── imports.py / orders.py / metrics.py / costs.py
+│   ├── ai.py / wecom.py / exports.py / dashboard.py
+│   └── douyin.py / douyin_costs.py / douyin_ai.py / douyin_wecom.py
+├── douyin_loader.py            # 抖音文件读取
+├── douyin_metrics.py           # 抖音 KPI 计算
+├── douyin_cost_manager.py      # 抖音成本管理
+├── douyin_services.py          # 抖音业务服务层
+├── douyin_storage.py           # 抖音数据持久化
+├── douyin_ai_analyzer.py       # 抖音 AI 提示词
+├── douyin_report_builder.py    # 抖音企微日报
+├── frontend/                   # React 前端
+│   ├── src/
+│   │   ├── App.tsx
+│   │   ├── pages/              # 拼多多 / 抖音各页面
+│   │   ├── components/
+│   │   └── api/client.ts
+│   └── package.json
 ├── requirements.txt
-├── start.bat
-├── start.ps1
-├── .gitignore
+├── start.bat / start.ps1       # 本地旧版 Streamlit 启动脚本
+├── .github/workflows/deploy.yml # 自动部署
 └── README.md
 ```
 
+---
+
 ## 注意事项
 
-- 首次运行会在项目目录下创建 `venv/` 虚拟环境和 `data/` 数据目录
-- 推广数据中的「总计」行会自动过滤
-- **真实 ROI = 有效商家实收 / 推广花费**，其中「有效」指剔除退款和取消订单
-- 退款判定基于订单状态或售后状态包含「退款成功」
-- 取消判定基于订单状态包含「已取消」「取消」「交易关闭」
-- 若推广数据无样式维度，则样式分析页仅展示订单侧的规格汇总
-- AI 分析需自行提供 API Key，工具不会上传或保存你的 Key
-- 多店铺数据按「店铺名称」分别存储，文件名会被安全化
+- 首次运行会创建 `venv/` 和 `data/` 目录
+- 拼多多真实 ROI = 有效商家实收 / 推广花费，「有效」指剔除退款和取消订单
+- 抖音实际收入 = 订单应付金额 + 平台实际承担优惠金额
+- 推广数据中的「总计/汇总/全部」行会自动过滤
+- 多店铺数据按「店铺名称」分别存储；店铺注册时选择所属平台
+- 子账号权限在「用户管理」中配置，需勾选对应平台页面与允许店铺
+- 天猫板块当前为占位状态，未接入实际数据功能
