@@ -3,10 +3,13 @@
 """
 
 import datetime
+import json as _json
+from pathlib import Path as _Path
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
+import wecom as wecom_sender
 
 from douyin_loader import read_order_file, read_promotion_file
 from douyin_metrics import aggregate_product_metrics, compute_overall_kpis
@@ -216,12 +219,26 @@ def generate_douyin_ai_report(
 
 # ---------- 企业微信 ----------
 
+_DOUYIN_WECOM_CONFIG_FILE = _Path("data/douyin_wecom_config.json")
+
+
+def _ensure_data_dir():
+    _DOUYIN_WECOM_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+
 def get_douyin_wecom_config() -> Dict[str, Any]:
-    return wecom_sender.load_wecom_config()
+    if not _DOUYIN_WECOM_CONFIG_FILE.exists():
+        return {}
+    try:
+        return _json.loads(_DOUYIN_WECOM_CONFIG_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
 
 
 def update_douyin_wecom_config(config: Dict[str, Any]) -> Dict[str, Any]:
-    return wecom_sender.save_wecom_config(config)
+    _ensure_data_dir()
+    _DOUYIN_WECOM_CONFIG_FILE.write_text(_json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
+    return config
 
 
 def send_douyin_wecom_report(report_date: datetime.date, config: Dict[str, Any]) -> Dict[str, Any]:
