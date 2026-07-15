@@ -12,7 +12,7 @@ import pandas as pd
 import wecom as wecom_sender
 
 from douyin_loader import read_order_file, read_promotion_file
-from douyin_metrics import aggregate_product_metrics, compute_overall_kpis
+from douyin_metrics import aggregate_product_metrics, build_product_metrics_from_orders, compute_overall_kpis
 from douyin_cost_manager import apply_costs_to_metrics, compute_cost_kpis
 from douyin_storage import (
     delete_daily_data,
@@ -94,6 +94,9 @@ def import_douyin_daily_data(
                 if day_orders.empty:
                     continue
                 existing_product = load_daily_data(store_name, d)[0]
+                # 如果当天没有推广数据，从订单反推基础商品指标，让总览/趋势能显示这一天
+                if existing_product.empty:
+                    existing_product = build_product_metrics_from_orders(day_orders, d)
                 meta = {
                     "promo_file": promo_filename or "",
                     "order_file": order_filename or "",

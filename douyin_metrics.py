@@ -39,6 +39,45 @@ def compute_overall_kpis(metrics: pd.DataFrame) -> Dict[str, Any]:
     return totals
 
 
+def build_product_metrics_from_orders(orders: pd.DataFrame, date: str) -> pd.DataFrame:
+    """当某天没有推广数据时，从订单数据反推基础商品指标（消耗/曝光/点击为 0）。"""
+    if orders is None or orders.empty:
+        return pd.DataFrame()
+
+    df = orders.copy()
+    df["product_id"] = df.get("product_id", "").astype(str)
+    df["product_name"] = df.get("product_name", "").astype(str)
+
+    # 金额/数量转数值
+    df["amount"] = pd.to_numeric(df.get("amount", 0), errors="coerce").fillna(0)
+    df["quantity"] = pd.to_numeric(df.get("quantity", 0), errors="coerce").fillna(0)
+
+    grouped = (
+        df.groupby("product_id")
+        .agg(
+            product_name=("product_name", lambda x: x.dropna().astype(str).iloc[0] if len(x) else ""),
+            gmv=("amount", "sum"),
+            order_count=("product_id", "size"),
+        )
+        .reset_index()
+    )
+
+    grouped["date"] = date
+    grouped["spend"] = 0.0
+    grouped["valid_gmv"] = grouped["gmv"]
+    grouped["valid_order_count"] = grouped["order_count"]
+    grouped["exposure"] = 0.0
+    grouped["clicks"] = 0.0
+    grouped["refund_orders"] = 0.0
+    grouped["refund_amount"] = 0.0
+
+    return grouped[[
+        "product_id", "product_name", "date",
+        "spend", "gmv", "valid_gmv", "order_count", "valid_order_count",
+        "exposure", "clicks", "refund_orders", "refund_amount",
+    ]]
+
+
 def aggregate_product_metrics(daily_list: List[pd.DataFrame]) -> pd.DataFrame:
     """按 product_id 汇总多日商品指标"""
     if not daily_list:
