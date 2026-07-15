@@ -9,6 +9,7 @@ import { getStores, createStore, renameStore, deleteStore, type Store } from "@/
 export function StoresPage() {
   const [stores, setStores] = useState<Store[]>([])
   const [newName, setNewName] = useState("")
+  const [newPlatform, setNewPlatform] = useState("pdd")
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState("")
   const [loading, setLoading] = useState(false)
@@ -33,7 +34,7 @@ export function StoresPage() {
   const handleCreate = async () => {
     if (!newName.trim()) return
     try {
-      await createStore(newName.trim())
+      await createStore(newName.trim(), newPlatform)
       setNewName("")
       fetchStores()
     } catch (err: any) {
@@ -78,6 +79,14 @@ export function StoresPage() {
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleCreate()}
             />
+            <select
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              value={newPlatform}
+              onChange={(e) => setNewPlatform(e.target.value)}
+            >
+              <option value="pdd">拼多多</option>
+              <option value="douyin">抖音</option>
+            </select>
             <Button onClick={handleCreate} disabled={loading}>
               <Plus className="h-4 w-4 mr-1" /> 新增
             </Button>
@@ -92,6 +101,7 @@ export function StoresPage() {
               <TableRow>
                 <TableHead>ID</TableHead>
                 <TableHead>名称</TableHead>
+                <TableHead>平台</TableHead>
                 <TableHead>创建时间</TableHead>
                 <TableHead className="text-right">操作</TableHead>
               </TableRow>
@@ -111,6 +121,11 @@ export function StoresPage() {
                     ) : (
                       store.name
                     )}
+                  </TableCell>
+                  <TableCell>
+                    <span className="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">
+                      {store.platform === "douyin" ? "抖音" : "拼多多"}
+                    </span>
                   </TableCell>
                   <TableCell>{new Date(store.created_at).toLocaleString()}</TableCell>
                   <TableCell className="text-right">
@@ -145,7 +160,7 @@ export function StoresPage() {
               ))}
               {stores.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground">
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                     暂无店铺
                   </TableCell>
                 </TableRow>

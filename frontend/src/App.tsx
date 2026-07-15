@@ -9,6 +9,7 @@ import {
   Coins,
   Bot,
   MessageCircle,
+  Music,
   Menu,
   X,
   LogOut,
@@ -29,6 +30,8 @@ import { CostsPage } from "@/pages/costs"
 import { AiPage } from "@/pages/ai"
 import { WecomPage } from "@/pages/wecom"
 import { UsersPage } from "@/pages/users"
+import { DouyinPage } from "@/pages/douyin"
+import { DouyinCostsPage } from "@/pages/douyin-costs"
 import { ChangePasswordPage } from "@/pages/change-password"
 
 const allNavItems = [
@@ -41,6 +44,8 @@ const allNavItems = [
   { id: "ai", to: "/ai", label: "AI", icon: Bot },
   { id: "wecom", to: "/wecom", label: "企微", icon: MessageCircle },
   { id: "users", to: "/users", label: "用户", icon: Users },
+  { id: "douyin", to: "/douyin", label: "抖音", icon: Music },
+  { id: "douyin_costs", to: "/douyin-costs", label: "抖音成本", icon: Coins },
 ]
 
 function Sidebar({ onClose }: { onClose?: () => void }) {
@@ -140,6 +145,8 @@ function Layout() {
             <Route path="/ai" element={<AiPage />} />
             <Route path="/wecom" element={<WecomPage />} />
             <Route path="/users" element={<UsersPage />} />
+            <Route path="/douyin" element={<DouyinPage />} />
+            <Route path="/douyin-costs" element={<DouyinCostsPage />} />
             <Route path="/change-password" element={<ChangePasswordPage />} />
           </Routes>
         </div>

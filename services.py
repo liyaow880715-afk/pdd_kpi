@@ -153,12 +153,12 @@ def _json_safe(obj: Any) -> Any:
 
 # ---------- 店铺 ----------
 
-def get_stores() -> List[Dict[str, Any]]:
-    return list_stores()
+def get_stores(platform: Optional[str] = None) -> List[Dict[str, Any]]:
+    return list_stores(platform=platform)
 
 
-def create_store(name: str) -> Dict[str, Any]:
-    return add_store(name)
+def create_store(name: str, platform: str = "pdd") -> Dict[str, Any]:
+    return add_store(name, platform=platform)
 
 
 def rename_store_service(store_id: str, new_name: str) -> Optional[Dict[str, Any]]:

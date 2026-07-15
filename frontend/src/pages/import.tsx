@@ -7,7 +7,17 @@ import { Label } from "@/components/ui/label"
 import { Select } from "@/components/ui/select"
 import { FileDropzone } from "@/components/ui/file-dropzone"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { getStores, importData, getRecords, deleteRecord, type Store, type ImportRecord } from "@/api/client"
+import {
+  getStores,
+  importData,
+  getRecords,
+  deleteRecord,
+  importDouyinData,
+  getDouyinRecords,
+  deleteDouyinRecord,
+  type Store,
+  type DouyinImportRecord,
+} from "@/api/client"
 
 function getYesterday() {
   const d = new Date()
@@ -15,9 +25,23 @@ function getYesterday() {
   return d.toISOString().split("T")[0]
 }
 
+type PlatformRecord = {
+  platform: "pdd" | "douyin"
+  date: string
+  store_name: string
+  promo_file: string
+  order_file: string
+  product_rows: number
+  order_rows: number
+  style_rows?: number
+  saved_at?: string
+  [key: string]: any
+}
+
 export function ImportPage() {
   const [stores, setStores] = useState<Store[]>([])
-  const [records, setRecords] = useState<ImportRecord[]>([])
+  const [records, setRecords] = useState<PlatformRecord[]>([])
+  const [importPlatform, setImportPlatform] = useState<"pdd" | "douyin">("pdd")
   const [storeName, setStoreName] = useState("")
   const [importDate, setImportDate] = useState(getYesterday())
   const [promoFile, setPromoFile] = useState<File | null>(null)
@@ -30,9 +54,21 @@ export function ImportPage() {
     fetchRecords()
   }, [])
 
+  const platformStores = stores.filter((s) => s.platform === importPlatform)
+
+  useEffect(() => {
+    if (platformStores.length > 0 && !storeName) {
+      setStoreName(platformStores[0].name)
+    }
+  }, [importPlatform, platformStores, storeName])
+
   const fetchRecords = async () => {
-    const data = await getRecords()
-    setRecords(data)
+    const [pddRecords, douyinRecords] = await Promise.all([getRecords(), getDouyinRecords()])
+    const merged: PlatformRecord[] = [
+      ...pddRecords.map((r) => ({ ...r, platform: "pdd" as const })),
+      ...(douyinRecords as DouyinImportRecord[]).map((r) => ({ ...r, platform: "douyin" as const })),
+    ]
+    setRecords(merged)
   }
 
   const handleImport = async () => {
@@ -52,25 +88,37 @@ export function ImportPage() {
       formData.append("import_date", importDate)
       if (promoFile) formData.append("promo_file", promoFile)
       if (orderFile) formData.append("order_file", orderFile)
-      const res = await importData(formData)
-      if (res.error) {
-        setMessage(res.error)
-        return
+
+      let res: any
+      if (importPlatform === "pdd") {
+        res = await importData(formData)
+        if (res.error) {
+          setMessage(res.error)
+          return
+        }
+        const dates = res.processed_dates || []
+        const dateInfo = dates.length > 0 ? `处理日期：${dates.join(", ")}` : ""
+        const detail = []
+        if (res.original_order_rows) {
+          detail.push(`订单 CSV 共 ${res.original_order_rows} 行`)
+        }
+        if (res.product_rows !== undefined) {
+          detail.push(`生成商品指标 ${res.product_rows} 行`)
+        }
+        if (res.order_rows !== undefined) {
+          detail.push(`累计订单 ${res.order_rows} 行`)
+        }
+        setMessage(`导入成功。${dateInfo}${detail.length ? "；" + detail.join("，") : ""}`)
+      } else {
+        res = await importDouyinData(formData)
+        if (res.error) {
+          setMessage(res.error)
+          return
+        }
+        setMessage(
+          `导入成功。店铺：${res.store_name}，日期：${res.date}；商品 ${res.product_rows || 0} 行，订单 ${res.order_rows || 0} 行`
+        )
       }
-      const dates = res.processed_dates || []
-      const dateInfo = dates.length > 0 ? `处理日期：${dates.join(", ")}` : ""
-      const detail = []
-      if (res.original_order_rows) {
-        detail.push(`订单 CSV 共 ${res.original_order_rows} 行`)
-      }
-      if (res.product_rows !== undefined) {
-        detail.push(`生成商品指标 ${res.product_rows} 行`)
-      }
-      if (res.order_rows !== undefined) {
-        detail.push(`累计订单 ${res.order_rows} 行`)
-      }
-      const msg = `导入成功。${dateInfo}${detail.length ? "；" + detail.join("，") : ""}`
-      setMessage(msg)
       setPromoFile(null)
       setOrderFile(null)
       fetchRecords()
@@ -81,10 +129,14 @@ export function ImportPage() {
     }
   }
 
-  const handleDelete = async (storeName: string, date: string) => {
+  const handleDelete = async (storeName: string, date: string, platform: "pdd" | "douyin") => {
     if (!confirm("确定删除该日数据？")) return
     try {
-      await deleteRecord(storeName, date)
+      if (platform === "pdd") {
+        await deleteRecord(storeName, date)
+      } else {
+        await deleteDouyinRecord(storeName, date)
+      }
       fetchRecords()
     } catch (err: any) {
       setMessage(err.message)
@@ -104,12 +156,19 @@ export function ImportPage() {
           <CardTitle>导入每日数据</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label>平台</Label>
+              <Select value={importPlatform} onChange={(e) => setImportPlatform(e.target.value as "pdd" | "douyin")}>
+                <option value="pdd">拼多多</option>
+                <option value="douyin">抖音</option>
+              </Select>
+            </div>
             <div className="space-y-2">
               <Label>店铺</Label>
               <Select value={storeName} onChange={(e) => setStoreName(e.target.value)}>
                 <option value="">选择店铺</option>
-                {stores.map((s) => (
+                {platformStores.map((s) => (
                   <option key={s.id} value={s.name}>
                     {s.name}
                   </option>
@@ -158,6 +217,7 @@ export function ImportPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>日期</TableHead>
+                <TableHead>平台</TableHead>
                 <TableHead>店铺</TableHead>
                 <TableHead>商品/样式/订单</TableHead>
                 <TableHead>文件名</TableHead>
@@ -166,15 +226,20 @@ export function ImportPage() {
             </TableHeader>
             <TableBody>
               {records.map((r) => (
-                <TableRow key={`${r.store_name}-${r.date}`}>
+                <TableRow key={`${r.platform}-${r.store_name}-${r.date}`}>
                   <TableCell>{r.date}</TableCell>
+                  <TableCell>{r.platform === "pdd" ? "拼多多" : "抖音"}</TableCell>
                   <TableCell>{r.store_name}</TableCell>
-                  <TableCell>{r.product_rows} / {r.style_rows} / {r.order_rows}</TableCell>
+                  <TableCell>
+                    {r.platform === "pdd"
+                      ? `${r.product_rows} / ${r.style_rows} / ${r.order_rows}`
+                      : `${(r as any).product_rows || 0} / ${(r as any).order_rows || 0}`}
+                  </TableCell>
                   <TableCell className="text-xs max-w-xs truncate">
                     {r.promo_file} / {r.order_file}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" onClick={() => handleDelete(r.store_name, r.date)}>
+                    <Button variant="ghost" size="sm" onClick={() => handleDelete(r.store_name, r.date, r.platform)}>
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </TableCell>

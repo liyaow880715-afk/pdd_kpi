@@ -55,6 +55,7 @@ api.interceptors.response.use(
 export type Store = {
   id: string
   name: string
+  platform: string
   created_at: string
   updated_at: string
 }
@@ -91,13 +92,13 @@ export async function getHealth() {
   return res.data
 }
 
-export async function getStores() {
-  const res = await api.get<Store[]>("/stores")
+export async function getStores(platform?: string) {
+  const res = await api.get<Store[]>("/stores", { params: platform ? { platform } : {} })
   return res.data
 }
 
-export async function createStore(name: string) {
-  const res = await api.post<Store>("/stores", { name })
+export async function createStore(name: string, platform: string = "pdd") {
+  const res = await api.post<Store>("/stores", { name, platform })
   return res.data
 }
 
@@ -256,5 +257,109 @@ export async function updateWecomConfig(config: Record<string, any>) {
 
 export async function sendWecomReport(reportDate: string, config: Record<string, any>) {
   const res = await api.post("/wecom/send", { report_date: reportDate, config })
+  return res.data
+}
+
+// ---------- 抖音 ----------
+
+export type DouyinCost = {
+  product_id: string
+  product_name: string
+  product_cost: number
+  logistics_cost: number
+  updated_at?: string
+}
+
+export type DouyinAnalysisData = {
+  product_metrics: Record<string, any>[]
+  kpis: Record<string, number | null>
+  cost_kpis: Record<string, number | null>
+}
+
+export async function importDouyinData(formData: FormData) {
+  const res = await api.post("/douyin/import", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  })
+  return res.data
+}
+
+export async function getDouyinDashboardSummary(startDate: string, endDate: string, storeNames?: string[]) {
+  const params: Record<string, any> = { start_date: startDate, end_date: endDate }
+  if (storeNames && storeNames.length > 0) {
+    params.store_names = storeNames
+  }
+  const res = await api.get("/douyin/dashboard", { params })
+  return res.data as { store_count: number; kpis: Record<string, number | null>; cost_kpis: Record<string, number | null>; trend: any[] }
+}
+
+export async function getDouyinAnalysis(storeName: string, startDate: string, endDate: string) {
+  const res = await api.get<DouyinAnalysisData>("/douyin/analysis", {
+    params: { store_name: storeName, start_date: startDate, end_date: endDate },
+  })
+  return res.data
+}
+
+export async function getDouyinTrend(storeName: string, startDate: string, endDate: string) {
+  const res = await api.get("/douyin/trend", {
+    params: { store_name: storeName, start_date: startDate, end_date: endDate },
+  })
+  return res.data
+}
+
+export async function getDouyinOrders(storeName: string, date: string) {
+  const res = await api.get("/douyin/orders", { params: { store_name: storeName, date } })
+  return res.data
+}
+
+export async function getDouyinCosts() {
+  const res = await api.get<DouyinCost[]>("/douyin/costs")
+  return res.data
+}
+
+export async function saveDouyinCosts(costs: DouyinCost[]) {
+  const res = await api.post("/douyin/costs", costs)
+  return res.data
+}
+
+export async function exportDouyinCosts() {
+  const res = await api.get("/douyin/costs/export", { responseType: "blob" })
+  return res.data as Blob
+}
+
+export async function importDouyinCosts(file: File) {
+  const formData = new FormData()
+  formData.append("file", file)
+  const res = await api.post("/douyin/costs/import", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  })
+  return res.data as { updated: number }
+}
+
+export async function getDouyinUnmappedProducts(startDate: string, endDate: string, storeName?: string) {
+  const params: Record<string, any> = { start_date: startDate, end_date: endDate }
+  if (storeName) params.store_name = storeName
+  const res = await api.get<{ product_id: string; product_name: string }[]>("/douyin/costs/unmapped", { params })
+  return res.data
+}
+
+export type DouyinImportRecord = {
+  date: string
+  store_name: string
+  promo_file: string
+  order_file: string
+  product_rows: number
+  order_rows: number
+  saved_at?: string
+}
+
+export async function getDouyinRecords(storeName?: string) {
+  const res = await api.get<DouyinImportRecord[]>("/douyin/records", {
+    params: storeName ? { store_name: storeName } : {},
+  })
+  return res.data
+}
+
+export async function deleteDouyinRecord(storeName: string, date: string) {
+  const res = await api.delete(`/douyin/records/${storeName}/${date}`)
   return res.data
 }

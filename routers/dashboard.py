@@ -17,7 +17,7 @@ def dashboard_summary(
     store_names: Optional[List[str]] = Query(None),
     user: dict = Depends(get_current_user),
 ):
-    allowed = accessible_stores(user, list_store_names())
+    allowed = accessible_stores(user, list_store_names("pdd"))
     if store_names:
         selected = authorize_stores(user, store_names)
     else:

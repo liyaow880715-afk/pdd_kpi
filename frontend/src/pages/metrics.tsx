@@ -199,7 +199,7 @@ export function MetricsPage() {
   })
 
   useEffect(() => {
-    getStores().then(setStores)
+    getStores("pdd").then(setStores)
   }, [])
 
   const toggleKpi = (key: string) => {

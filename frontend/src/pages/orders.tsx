@@ -16,7 +16,7 @@ export function OrdersPage() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    getStores().then(setStores)
+    getStores("pdd").then(setStores)
   }, [])
 
   const handleSearch = async () => {

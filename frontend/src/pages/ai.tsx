@@ -20,7 +20,7 @@ export function AiPage() {
   const [activeTab, setActiveTab] = useState("config")
 
   useEffect(() => {
-    getStores().then(setStores)
+    getStores("pdd").then(setStores)
     getAiConfig().then(setConfig)
   }, [])
 

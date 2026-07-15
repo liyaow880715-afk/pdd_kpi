@@ -24,6 +24,7 @@ const pageOptions = [
   { id: "costs", label: "成本" },
   { id: "ai", label: "AI" },
   { id: "wecom", label: "企微" },
+  { id: "douyin", label: "抖音" },
 ]
 
 export function UsersPage() {

@@ -3,6 +3,7 @@
 - 维护 data/stores.json
 - 提供店铺增删改查
 - 店铺存储 key 使用 sanitized name，保持与 storage.py 一致
+- 支持 platform 字段区分拼多多/抖音
 """
 
 import json
@@ -43,15 +44,30 @@ def _save_registry(registry: Dict[str, dict]):
     STORES_FILE.write_text(json.dumps(registry, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def list_stores() -> List[dict]:
-    """返回所有已注册店铺列表"""
+def _migrate_platform(registry: Dict[str, dict]):
+    """为旧店铺补齐 platform 字段"""
+    updated = False
+    for store in registry.values():
+        if "platform" not in store:
+            store["platform"] = "pdd"
+            updated = True
+    if updated:
+        _save_registry(registry)
+
+
+def list_stores(platform: Optional[str] = None) -> List[dict]:
+    """返回已注册店铺列表，可按 platform 过滤"""
     registry = _load_registry()
-    return sorted(registry.values(), key=lambda x: x.get("created_at", ""))
+    _migrate_platform(registry)
+    stores = sorted(registry.values(), key=lambda x: x.get("created_at", ""))
+    if platform:
+        stores = [s for s in stores if s.get("platform") == platform]
+    return stores
 
 
-def list_store_names() -> List[str]:
+def list_store_names(platform: Optional[str] = None) -> List[str]:
     """返回店铺显示名列表"""
-    return [s["name"] for s in list_stores()]
+    return [s["name"] for s in list_stores(platform)]
 
 
 def get_store(store_id: str) -> Optional[dict]:
@@ -68,7 +84,7 @@ def get_store_by_name(name: str) -> Optional[dict]:
     return None
 
 
-def add_store(name: str) -> dict:
+def add_store(name: str, platform: str = "pdd") -> dict:
     """
     新增店铺，返回店铺信息。
     如果同名店铺已存在，则自动加序号。
@@ -91,6 +107,7 @@ def add_store(name: str) -> dict:
     store = {
         "id": store_id,
         "name": display_name,
+        "platform": platform,
         "created_at": datetime.now().isoformat(),
         "updated_at": datetime.now().isoformat(),
     }
@@ -126,43 +143,10 @@ def rename_store(store_id: str, new_name: str) -> Optional[dict]:
 
 
 def delete_store(store_id: str) -> bool:
-    """
-    删除店铺注册信息，并同步删除该店铺的所有历史数据文件
-    """
+    """删除店铺"""
     registry = _load_registry()
     if store_id not in registry:
         return False
-
-    # 删除数据文件
-    from storage import PROCESSED_DIR, META_FILE, init_storage
-    init_storage()
-    store_str = store_id
-    for f in PROCESSED_DIR.glob(f"*{store_str}_*"):
-        try:
-            f.unlink()
-        except Exception:
-            pass
-
-    # 更新 meta.json
-    if META_FILE.exists():
-        try:
-            meta = json.loads(META_FILE.read_text(encoding="utf-8"))
-            records = meta.get("records", {})
-            keys_to_remove = [k for k in records if k.startswith(f"{store_str}_")]
-            for k in keys_to_remove:
-                records.pop(k, None)
-            META_FILE.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
-        except Exception:
-            pass
-
     del registry[store_id]
     _save_registry(registry)
     return True
-
-
-def ensure_store(name: str) -> dict:
-    """确保店铺存在，不存在则创建"""
-    store = get_store_by_name(name)
-    if store:
-        return store
-    return add_store(name)
