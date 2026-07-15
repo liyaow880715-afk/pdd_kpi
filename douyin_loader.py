@@ -37,7 +37,18 @@ def _parse_date(v: Any) -> Optional[str]:
     if s in ("全部", "汇总", "总计", "-", ""):
         return None
     # 尝试常见日期格式
-    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y%m%d", "%Y-%m-%d %H:%M:%S"):
+    formats = (
+        "%Y-%m-%d",
+        "%Y/%m/%d",
+        "%Y%m%d",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y/%m/%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y/%m/%d %H:%M",
+        "%Y年%m月%d日 %H:%M:%S",
+        "%Y年%m月%d日",
+    )
+    for fmt in formats:
         try:
             return datetime.strptime(s, fmt).strftime("%Y-%m-%d")
         except ValueError:
@@ -47,10 +58,14 @@ def _parse_date(v: Any) -> Optional[str]:
         return pd.to_datetime(float(s), unit="D").strftime("%Y-%m-%d")
     except Exception:
         pass
+    # 兜底：让 pandas 尝试解析（可处理 2026/7/4 这类非补零格式）
     try:
-        return pd.to_datetime(s).strftime("%Y-%m-%d")
+        dt = pd.to_datetime(s, errors="coerce")
+        if pd.notna(dt):
+            return dt.strftime("%Y-%m-%d")
     except Exception:
-        return None
+        pass
+    return None
 
 
 def _clean_number(v: Any) -> float:
@@ -149,7 +164,10 @@ def read_order_file(file_bytes: bytes, filename: str = "") -> pd.DataFrame:
     df["amount"] = df.get("订单应付金额", 0).apply(_clean_number)
     df["order_status"] = df.get("订单状态", "").astype(str)
     df["aftersale_status"] = df.get("售后状态", "").astype(str)
-    df["order_time"] = df.get("订单提交时间", "")
+
+    # 兼容多种时间列名
+    time_col = _pick_column(df, ["订单提交时间", "下单时间", "订单创建时间", "创建时间", "付款时间", "支付时间"])
+    df["order_time"] = df[time_col] if time_col else ""
     df["order_date"] = df["order_time"].apply(_parse_date)
 
     return df[[
