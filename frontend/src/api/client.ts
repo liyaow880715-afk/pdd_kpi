@@ -306,6 +306,50 @@ export async function getDouyinTrend(storeName: string, startDate: string, endDa
   return res.data
 }
 
+export async function getDouyinAiConfig() {
+  const res = await api.get("/douyin/ai/config")
+  return res.data
+}
+
+export async function updateDouyinAiConfig(config: Record<string, any>) {
+  const res = await api.post("/douyin/ai/config", config)
+  return res.data
+}
+
+export async function testDouyinAi(config: Record<string, any>) {
+  const res = await api.post("/douyin/ai/test", config)
+  return res.data
+}
+
+export async function generateDouyinAiReport(
+  storeName: string,
+  startDate: string,
+  endDate: string,
+  config: Record<string, any>
+) {
+  const res = await api.post("/douyin/ai/report", config, {
+    params: { store_name: storeName, start_date: startDate, end_date: endDate },
+  })
+  return res.data
+}
+
+export async function getDouyinWecomConfig() {
+  const res = await api.get("/douyin/wecom/config")
+  return res.data
+}
+
+export async function updateDouyinWecomConfig(config: Record<string, any>) {
+  const res = await api.post("/douyin/wecom/config", config)
+  return res.data
+}
+
+export async function sendDouyinWecomReport(reportDate: string, config: Record<string, any>) {
+  const res = await api.post("/douyin/wecom/send", config, {
+    params: { report_date: reportDate },
+  })
+  return res.data
+}
+
 export async function getDouyinOrders(storeName: string, date: string) {
   const res = await api.get("/douyin/orders", { params: { store_name: storeName, date } })
   return res.data

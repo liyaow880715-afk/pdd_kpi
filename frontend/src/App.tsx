@@ -9,7 +9,6 @@ import {
   Coins,
   Bot,
   MessageCircle,
-  Music,
   Menu,
   X,
   LogOut,
@@ -30,8 +29,13 @@ import { CostsPage } from "@/pages/costs"
 import { AiPage } from "@/pages/ai"
 import { WecomPage } from "@/pages/wecom"
 import { UsersPage } from "@/pages/users"
-import { DouyinPage } from "@/pages/douyin"
+import { DouyinDashboardPage } from "@/pages/douyin-dashboard"
+import { DouyinImportPage } from "@/pages/douyin-import"
+import { DouyinMetricsPage } from "@/pages/douyin-metrics"
+import { DouyinOrdersPage } from "@/pages/douyin-orders"
 import { DouyinCostsPage } from "@/pages/douyin-costs"
+import { DouyinAiPage } from "@/pages/douyin-ai"
+import { DouyinWecomPage } from "@/pages/douyin-wecom"
 import { ChangePasswordPage } from "@/pages/change-password"
 
 type Platform = "pdd" | "douyin" | "tmall"
@@ -56,8 +60,13 @@ const pddNavItems: NavItem[] = [
 ]
 
 const douyinNavItems: NavItem[] = [
-  { id: "douyin", to: "/douyin", label: "抖音数据", icon: Music },
-  { id: "douyin_costs", to: "/douyin-costs", label: "抖音成本", icon: Coins },
+  { id: "douyin", to: "/douyin", label: "抖音总览", icon: LayoutDashboard },
+  { id: "douyin", to: "/douyin/import", label: "抖音导入", icon: Upload },
+  { id: "douyin", to: "/douyin/metrics", label: "抖音指标", icon: BarChart3 },
+  { id: "douyin", to: "/douyin/orders", label: "抖音订单", icon: ShoppingCart },
+  { id: "douyin", to: "/douyin/costs", label: "抖音成本", icon: Coins },
+  { id: "douyin", to: "/douyin/ai", label: "抖音 AI", icon: Bot },
+  { id: "douyin", to: "/douyin/wecom", label: "抖音企微", icon: MessageCircle },
   { id: "users", to: "/users", label: "用户", icon: Users },
 ]
 
@@ -244,8 +253,13 @@ function Layout() {
             <Route path="/ai" element={<AiPage />} />
             <Route path="/wecom" element={<WecomPage />} />
             <Route path="/users" element={<UsersPage />} />
-            <Route path="/douyin" element={<DouyinPage />} />
-            <Route path="/douyin-costs" element={<DouyinCostsPage />} />
+            <Route path="/douyin" element={<DouyinDashboardPage />} />
+            <Route path="/douyin/import" element={<DouyinImportPage />} />
+            <Route path="/douyin/metrics" element={<DouyinMetricsPage />} />
+            <Route path="/douyin/orders" element={<DouyinOrdersPage />} />
+            <Route path="/douyin/costs" element={<DouyinCostsPage />} />
+            <Route path="/douyin/ai" element={<DouyinAiPage />} />
+            <Route path="/douyin/wecom" element={<DouyinWecomPage />} />
             <Route path="/tmall" element={<TmallPlaceholder />} />
             <Route path="/change-password" element={<ChangePasswordPage />} />
           </Routes>

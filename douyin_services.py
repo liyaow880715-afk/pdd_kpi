@@ -127,8 +127,10 @@ def load_douyin_trend(
     rows = []
     for d in dates:
         p, _ = load_daily_data(store_name, d)
+        p_cost = apply_costs_to_metrics(p)
         kpis = compute_overall_kpis(p)
-        row = {"date": d, **kpis}
+        cost = compute_cost_kpis(p_cost)
+        row = {"date": d, **kpis, **cost}
         rows.append(_json_safe(row))
     return rows
 
@@ -182,6 +184,49 @@ def get_douyin_orders(store_name: str, date: datetime.date) -> List[Dict[str, An
     if orders.empty:
         return []
     return _json_safe(orders.replace({pd.NA: None, float("nan"): None}).to_dict("records"))
+
+
+# ---------- AI ----------
+
+def get_douyin_ai_config() -> Dict[str, Any]:
+    return get_ai_config()
+
+
+def update_douyin_ai_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    return update_ai_config(config)
+
+
+def test_douyin_ai(config: Dict[str, Any]) -> str:
+    return test_ai_connection(config)
+
+
+def generate_douyin_ai_report(
+    store_name: str,
+    start_date: datetime.date,
+    end_date: datetime.date,
+    config: Dict[str, Any],
+) -> Dict[str, Any]:
+    analysis = load_douyin_analysis(store_name, start_date, end_date)
+    return generate_ai_report(
+        kpis=analysis.get("kpis") or {},
+        product_metrics=analysis.get("product_metrics") or [],
+        config=config,
+    )
+
+
+# ---------- 企业微信 ----------
+
+def get_douyin_wecom_config() -> Dict[str, Any]:
+    return wecom_sender.load_wecom_config()
+
+
+def update_douyin_wecom_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    return wecom_sender.save_wecom_config(config)
+
+
+def send_douyin_wecom_report(report_date: datetime.date, config: Dict[str, Any]) -> Dict[str, Any]:
+    content = build_daily_report(report_date)
+    return wecom_sender.send_wecom_report(content=content, config=config)
 
 
 def get_douyin_records(store_name: Optional[str] = None) -> List[Dict[str, Any]]:
