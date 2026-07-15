@@ -116,10 +116,13 @@ const kpiGroups = [
   {
     title: "成本与利润",
     items: [
+      { key: "total_product_cost", label: "商品成本", unit: "元" },
+      { key: "total_logistics_cost", label: "物流成本", unit: "元" },
       { key: "total_cost", label: "总成本", unit: "元" },
       { key: "link_gross_profit", label: "链接毛利", unit: "元" },
       { key: "profit_loss", label: "盈亏", unit: "元" },
       { key: "gross_margin_rate", label: "毛利率", unit: "%" },
+      { key: "profit_loss_rate", label: "盈亏率", unit: "%" },
     ],
   },
 ]
@@ -152,9 +155,13 @@ const productColumns = [
   { key: "organic_ratio_valid_orders", label: "自然有效订单%" },
   { key: "avg_order_gmv", label: "客单价" },
   { key: "avg_valid_order_income", label: "单均收入" },
-  { key: "total_cost", label: "成本" },
+  { key: "total_product_cost", label: "商品成本" },
+  { key: "total_logistics_cost", label: "物流成本" },
+  { key: "total_cost", label: "总成本" },
   { key: "link_gross_profit", label: "毛利" },
   { key: "profit_loss", label: "盈亏" },
+  { key: "gross_margin_rate", label: "毛利率%" },
+  { key: "profit_loss_rate", label: "盈亏率%" },
 ]
 
 const styleColumns = [
@@ -377,11 +384,14 @@ export function MetricsPage() {
                   },
                   {
                     title: "成本与利润",
-                    description: "链接毛利、盈亏、毛利率",
+                    description: "商品成本、物流成本、毛利、盈亏、毛利率、盈亏率",
                     metrics: [
+                      { key: "total_product_cost", name: "商品成本", color: "#f59e0b", unit: "元" },
+                      { key: "total_logistics_cost", name: "物流成本", color: "#8b5cf6", unit: "元" },
                       { key: "link_gross_profit", name: "链接毛利", color: "#22c55e", unit: "元" },
                       { key: "profit_loss", name: "盈亏", color: "#ef4444", unit: "元" },
                       { key: "gross_margin_rate", name: "毛利率", color: "#3b82f6", unit: "%" },
+                      { key: "profit_loss_rate", name: "盈亏率", color: "#06b6d4", unit: "%" },
                     ],
                   },
                 ].map((chart) => (
@@ -421,7 +431,7 @@ export function MetricsPage() {
                           {productColumns.map((col) => {
                             const v = row[col.key]
                             const isRate = col.label.includes("%") || col.key.includes("rate") || col.key.includes("roi")
-                            const isMoney = ["promo_spend", "promo_gmv", "valid_order_gmv", "valid_merchant_income", "order_gmv", "merchant_income", "total_cost", "link_gross_profit", "profit_loss", "cpc", "avg_order_gmv", "avg_valid_order_income"].includes(col.key)
+                            const isMoney = ["promo_spend", "promo_gmv", "valid_order_gmv", "valid_merchant_income", "order_gmv", "merchant_income", "total_product_cost", "total_logistics_cost", "total_cost", "link_gross_profit", "profit_loss", "cpc", "avg_order_gmv", "avg_valid_order_income"].includes(col.key)
                             return (
                               <TableCell key={col.key} className="text-xs whitespace-nowrap">
                                 {col.key === "product_name" || col.key === "style_name" ? (

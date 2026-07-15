@@ -45,7 +45,7 @@ jobs:
             cd /home/ubuntu/pdd_kpi
             git pull origin master
             ./venv/bin/pip install -r requirements.txt
-            sudo systemctl restart pdd-api
+            sudo systemctl restart pdd_kpi
             sudo rm -rf /var/www/pdd_kpi/dist
             sudo cp -r /home/ubuntu/pdd_kpi/frontend/dist /var/www/pdd_kpi/
             sudo chown -R www-data:www-data /var/www/pdd_kpi

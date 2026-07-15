@@ -1,10 +1,11 @@
 import datetime
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 import services
+from auth import authorize_store, get_current_user
 
 router = APIRouter()
 
@@ -19,10 +20,16 @@ class MerchantMappingRequest(BaseModel):
 def list_orders(
     store_name: str = Query(...),
     date: datetime.date = Query(...),
+    user: dict = Depends(get_current_user),
 ):
+    authorize_store(user, store_name)
     return services.get_orders(store_name, date)
 
 
 @router.post("/mappings", response_model=Dict[str, Any])
-def save_merchant_mapping(req: MerchantMappingRequest):
+def save_merchant_mapping(
+    req: MerchantMappingRequest,
+    user: dict = Depends(get_current_user),
+):
+    authorize_store(user, req.store_name)
     return services.save_merchant_mapping(req.store_name, req.product_id, req.merchant_code)

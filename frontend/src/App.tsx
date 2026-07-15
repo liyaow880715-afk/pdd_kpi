@@ -1,10 +1,24 @@
 import { useState } from "react"
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom"
-import { LayoutDashboard, Store, Upload, BarChart3, ShoppingCart, Coins, Bot, MessageCircle, Menu, X, LogOut } from "lucide-react"
+import {
+  LayoutDashboard,
+  Store,
+  Upload,
+  BarChart3,
+  ShoppingCart,
+  Coins,
+  Bot,
+  MessageCircle,
+  Menu,
+  X,
+  LogOut,
+  Users,
+  Settings,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { AuthGuard } from "@/components/auth-guard"
-import { logout } from "@/api/auth"
+import { getCurrentUser, isMaster, logout } from "@/api/auth"
 import { LoginPage } from "@/pages/login"
 import { DashboardPage } from "@/pages/dashboard"
 import { StoresPage } from "@/pages/stores"
@@ -14,19 +28,29 @@ import { OrdersPage } from "@/pages/orders"
 import { CostsPage } from "@/pages/costs"
 import { AiPage } from "@/pages/ai"
 import { WecomPage } from "@/pages/wecom"
+import { UsersPage } from "@/pages/users"
+import { ChangePasswordPage } from "@/pages/change-password"
 
-const navItems = [
+const baseNavItems = [
   { to: "/", label: "总览", icon: LayoutDashboard },
   { to: "/stores", label: "店铺", icon: Store },
   { to: "/import", label: "导入", icon: Upload },
   { to: "/metrics", label: "指标", icon: BarChart3 },
   { to: "/orders", label: "订单", icon: ShoppingCart },
   { to: "/costs", label: "成本", icon: Coins },
+]
+
+const masterNavItems = [
   { to: "/ai", label: "AI", icon: Bot },
   { to: "/wecom", label: "企微", icon: MessageCircle },
+  { to: "/users", label: "用户", icon: Users },
 ]
 
 function Sidebar({ onClose }: { onClose?: () => void }) {
+  const user = getCurrentUser()
+  const showMaster = isMaster()
+  const navItems = [...baseNavItems, ...(showMaster ? masterNavItems : [])]
+
   return (
     <aside className="w-64 border-r bg-card min-h-screen p-4 flex flex-col">
       <div className="mb-8 px-2 flex items-center justify-between">
@@ -59,17 +83,29 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
           </NavLink>
         ))}
       </nav>
-      <div className="mt-auto pt-4 border-t flex items-center justify-between">
-        <ThemeToggle />
-        <Button variant="ghost" size="icon" onClick={logout}>
-          <LogOut className="h-4 w-4 text-muted-foreground" />
-        </Button>
+      <div className="mt-auto pt-4 border-t space-y-2">
+        <div className="px-2 text-sm">
+          <div className="font-medium">{user?.username || "未知用户"}</div>
+          <div className="text-xs text-muted-foreground">
+            {user?.role === "master" ? "主账号" : "子账号"}
+          </div>
+        </div>
+        <div className="flex items-center justify-between">
+          <NavLink to="/change-password">
+            <Button variant="ghost" size="sm" className="text-muted-foreground">
+              <Settings className="mr-1 h-4 w-4" />
+              改密码
+            </Button>
+          </NavLink>
+          <ThemeToggle />
+          <Button variant="ghost" size="icon" onClick={logout}>
+            <LogOut className="h-4 w-4 text-muted-foreground" />
+          </Button>
+        </div>
       </div>
     </aside>
   )
 }
-
-
 
 function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -104,6 +140,8 @@ function Layout() {
             <Route path="/costs" element={<CostsPage />} />
             <Route path="/ai" element={<AiPage />} />
             <Route path="/wecom" element={<WecomPage />} />
+            <Route path="/users" element={<UsersPage />} />
+            <Route path="/change-password" element={<ChangePasswordPage />} />
           </Routes>
         </div>
       </main>

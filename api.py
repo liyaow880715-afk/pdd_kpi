@@ -11,8 +11,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from routers import stores, imports, orders, metrics, costs, ai, wecom, exports, auth, dashboard
-from auth import auth_middleware, is_public_path
+from routers import stores, imports, orders, metrics, costs, ai, wecom, exports, auth, dashboard, users
+from auth import auth_middleware, init_auth, is_public_path
 
 
 @asynccontextmanager
@@ -20,6 +20,7 @@ async def lifespan(app: FastAPI):
     # 启动时确保数据目录存在
     from storage import init_storage
     init_storage()
+    init_auth()
     yield
 
 
@@ -66,6 +67,7 @@ app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
 app.include_router(wecom.router, prefix="/api/wecom", tags=["wecom"])
 app.include_router(exports.router, prefix="/api/exports", tags=["exports"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
+app.include_router(users.router, prefix="/api/users", tags=["users"])
 
 
 @app.get("/api/health")

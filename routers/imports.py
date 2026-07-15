@@ -1,9 +1,10 @@
 import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, UploadFile
 
 import services
+from auth import authorize_store, get_current_user
 
 router = APIRouter()
 
@@ -14,7 +15,9 @@ def import_daily_data(
     import_date: datetime.date = Form(...),
     promo_file: Optional[UploadFile] = File(None),
     order_file: Optional[UploadFile] = File(None),
+    user: dict = Depends(get_current_user),
 ):
+    authorize_store(user, store_name)
     if not promo_file and not order_file:
         return {"error": "请至少上传推广数据或订单数据中的一个"}
     promo_bytes = promo_file.file.read() if promo_file else None
@@ -30,10 +33,22 @@ def import_daily_data(
 
 
 @router.get("/records", response_model=List[Dict[str, Any]])
-def list_records(store_name: Optional[str] = None):
-    return services.get_records(store_name)
+def list_records(
+    store_name: Optional[str] = None,
+    user: dict = Depends(get_current_user),
+):
+    records = services.get_records(store_name)
+    allowed_names = set(user.get("allowed_stores") or [])
+    if user.get("role") == "master":
+        return records
+    return [r for r in records if r.get("store_name") in allowed_names]
 
 
 @router.delete("/records/{store_name}/{date}", response_model=Dict[str, Any])
-def delete_record(store_name: str, date: datetime.date):
+def delete_record(
+    store_name: str,
+    date: datetime.date,
+    user: dict = Depends(get_current_user),
+):
+    authorize_store(user, store_name)
     return services.delete_record(store_name, date)

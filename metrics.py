@@ -182,10 +182,10 @@ def compute_product_metrics(merged: pd.DataFrame) -> pd.DataFrame:
     )
 
     # 有效订单拆分估算：按订单数比例拆分有效订单
-    df["promo_valid_order_count"] = df.apply(
-        lambda r: r["promo_orders"] * safe_div(r["valid_order_count"], r["order_count"]), axis=1
-    )
-    df["organic_valid_order_count"] = (df["valid_order_count"] - df["promo_valid_order_count"]).clip(lower=0)
+    df["promo_valid_order_count"] = (
+        df["promo_orders"] * df["valid_order_count"] / df["order_count"].replace(0, np.nan)
+    ).fillna(0).round(0).astype(int)
+    df["organic_valid_order_count"] = (df["valid_order_count"] - df["promo_valid_order_count"]).clip(lower=0).astype(int)
     df["organic_ratio_valid_orders"] = df.apply(
         lambda r: safe_div(r["organic_valid_order_count"], r["valid_order_count"]) * 100, axis=1
     )
@@ -212,12 +212,13 @@ def compute_overall_kpis(metrics: pd.DataFrame) -> Dict[str, float]:
     # 成本相关字段（如果已应用）
     cost_totals = {}
     if metrics is not None and not metrics.empty:
-        for col in ["total_cost", "link_gross_profit", "profit_loss"]:
+        for col in ["total_product_cost", "total_logistics_cost", "total_cost", "link_gross_profit", "profit_loss"]:
             if col in metrics.columns:
                 cost_totals[col] = pd.to_numeric(metrics[col], errors="coerce").fillna(0).sum()
         if "valid_merchant_income" in metrics.columns and cost_totals.get("link_gross_profit") is not None:
             income = pd.to_numeric(metrics["valid_merchant_income"], errors="coerce").fillna(0).sum()
             cost_totals["gross_margin_rate"] = (cost_totals["link_gross_profit"] / income * 100) if income else 0.0
+            cost_totals["profit_loss_rate"] = (cost_totals["profit_loss"] / income * 100) if income else 0.0
 
     totals = {
         "promo_spend": metrics["promo_spend"].sum(),
@@ -323,7 +324,7 @@ def aggregate_product_metrics(daily_metrics_list: List[pd.DataFrame]) -> pd.Data
         if refund_col in combined.columns:
             sum_cols.append(refund_col)
     # 成本相关字段若已存在则一起汇总
-    for cost_col in ["total_cost", "link_gross_profit", "profit_loss"]:
+    for cost_col in ["total_product_cost", "total_logistics_cost", "total_cost", "link_gross_profit", "profit_loss"]:
         if cost_col in combined.columns:
             sum_cols.append(cost_col)
     sum_cols = [c for c in sum_cols if c in combined.columns]

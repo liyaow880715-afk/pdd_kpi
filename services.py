@@ -6,6 +6,7 @@ import io
 import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
+import numpy as np
 import pandas as pd
 
 from data_loader import read_promotion_file, read_order_file
@@ -67,10 +68,30 @@ def _date_str(d) -> str:
     return str(d)
 
 
+def _convert_value(v):
+    if isinstance(v, (np.integer, np.floating, np.bool_)):
+        return v.item()
+    return v
+
+
 def _df_to_records(df: pd.DataFrame) -> List[Dict]:
     if df is None or df.empty:
         return []
-    return df.replace({pd.NA: None, float("nan"): None}).to_dict("records")
+    records = df.replace({pd.NA: None, float("nan"): None}).to_dict("records")
+    return [{k: _convert_value(v) for k, v in row.items()} for row in records]
+
+
+def _json_safe(obj: Any) -> Any:
+    """递归把 numpy/pandas 标量转成 Python 原生类型，避免 FastAPI JSON 序列化报错"""
+    if isinstance(obj, dict):
+        return {k: _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_json_safe(v) for v in obj]
+    if isinstance(obj, (np.integer, np.floating, np.bool_)):
+        return obj.item()
+    if isinstance(obj, pd.Timestamp):
+        return obj.isoformat()
+    return obj
 
 
 # ---------- 店铺 ----------
@@ -388,11 +409,11 @@ def load_analysis_data(
     kpis = compute_overall_kpis(metrics)
 
     # 把 float nan 转为 None，避免 JSON 序列化问题
-    return {
+    return _json_safe({
         "product_metrics": _df_to_records(metrics),
         "style_metrics": _df_to_records(style_metrics),
         "kpis": {k: (None if pd.isna(v) else v) for k, v in kpis.items()},
-    }
+    })
 
 
 def load_trend_data(
@@ -417,7 +438,7 @@ def load_trend_data(
         "refund_unshipped_count", "refund_shipped_count", "refund_received_count",
         "organic_orders", "organic_gmv", "organic_ratio_orders", "organic_ratio_gmv",
         "organic_merchant_income", "organic_valid_order_count", "organic_ratio_income", "organic_ratio_valid_orders",
-        "total_cost", "link_gross_profit", "profit_loss", "gross_margin_rate",
+        "total_product_cost", "total_logistics_cost", "total_cost", "link_gross_profit", "profit_loss", "gross_margin_rate", "profit_loss_rate",
     ]
     rows = []
     for store in store_names:
@@ -428,6 +449,8 @@ def load_trend_data(
                 p = compute_product_metrics(p)
                 orders = load_daily_orders(d, store)
                 p = merge_refund_stage_counts(p, [orders])
+                # 趋势统一走成本回退逻辑，确保和分析页汇总结果一致
+                p["merchant_code"] = ""
                 p = apply_costs_to_metrics(p, store)
                 day_kpis = compute_overall_kpis(p)
                 row = {"store_name": store, "date": d}
@@ -461,7 +484,7 @@ def _recompute_kpis(totals: Dict[str, float]) -> Dict[str, float]:
             "refund_count", "cancel_count",
             "refund_unshipped_count", "refund_shipped_count", "refund_received_count",
             "organic_orders", "organic_gmv", "organic_merchant_income", "organic_valid_order_count",
-            "total_cost", "link_gross_profit", "profit_loss",
+            "total_product_cost", "total_logistics_cost", "total_cost", "link_gross_profit", "profit_loss",
         ]},
         "promo_roi": safe_div(_get("promo_gmv"), _get("promo_spend")),
         "real_roi": safe_div(_get("valid_merchant_income"), _get("promo_spend")),
@@ -486,15 +509,17 @@ def _recompute_kpis(totals: Dict[str, float]) -> Dict[str, float]:
         "promo_order_ratio": safe_div(_get("promo_orders"), _get("order_count")) * 100,
         "promo_cost_ratio": safe_div(_get("promo_spend"), _get("valid_merchant_income")) * 100,
         "gross_margin_rate": (profit / income * 100) if income else 0.0,
+        "profit_loss_rate": (_get("profit_loss") / income * 100) if income else 0.0,
     }
 
 
 def get_dashboard_summary(
     start_date: datetime.date,
     end_date: datetime.date,
+    store_names: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
-    """汇总所有店铺在指定日期范围内的经营与推广数据"""
-    store_names = list_available_stores()
+    """汇总指定店铺在日期范围内的经营与推广数据"""
+    store_names = store_names if store_names is not None else list_available_stores()
 
     base_keys = [
         "promo_spend", "promo_gmv", "promo_orders", "exposure", "clicks",
@@ -503,7 +528,7 @@ def get_dashboard_summary(
         "refund_count", "cancel_count",
         "refund_unshipped_count", "refund_shipped_count", "refund_received_count",
         "organic_orders", "organic_gmv", "organic_merchant_income", "organic_valid_order_count",
-        "total_cost", "link_gross_profit", "profit_loss",
+        "total_product_cost", "total_logistics_cost", "total_cost", "link_gross_profit", "profit_loss",
     ]
 
     # 汇总所有店铺整体 KPI
@@ -786,7 +811,7 @@ def listen_wecom(config: Dict[str, Any], timeout: int = 60) -> Optional[str]:
 
 
 def send_wecom_report_service(report_date: datetime.date, config: Dict[str, Any]) -> Dict[str, Any]:
-    content = build_daily_report(_date_str(report_date))
+    content = build_daily_report(report_date)
     result = send_wecom_report(content, config)
     return result
 

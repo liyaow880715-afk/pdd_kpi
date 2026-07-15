@@ -1,10 +1,11 @@
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, UploadFile
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 import services
+from auth import authorize_store, get_current_user, require_master
 
 router = APIRouter()
 
@@ -35,66 +36,99 @@ class ProductMappingRequest(BaseModel):
 # ---------- 按店铺（旧接口，保留兼容） ----------
 
 @router.get("", response_model=List[Dict[str, Any]])
-def list_costs(store_name: str):
+def list_costs(
+    store_name: str,
+    user: dict = Depends(get_current_user),
+):
+    authorize_store(user, store_name)
     return services.get_costs(store_name)
 
 
 @router.post("", response_model=Dict[str, Any])
-def save_costs(req: SaveCostsRequest):
+def save_costs(
+    req: SaveCostsRequest,
+    user: dict = Depends(get_current_user),
+):
+    authorize_store(user, req.store_name)
     return services.save_costs(req.store_name, [c.model_dump() for c in req.costs])
 
 
 @router.post("/refresh", response_model=Dict[str, Any])
-def refresh_cost_codes(store_name: str):
+def refresh_cost_codes(
+    store_name: str,
+    user: dict = Depends(get_current_user),
+):
+    authorize_store(user, store_name)
     return services.refresh_cost_codes(store_name)
 
 
 @router.get("/export", response_class=PlainTextResponse)
-def export_costs(store_name: str):
+def export_costs(
+    store_name: str,
+    user: dict = Depends(get_current_user),
+):
+    authorize_store(user, store_name)
     return services.export_cost_csv(store_name)
 
 
 @router.post("/import", response_model=Dict[str, Any])
-def import_costs(store_name: str = Form(...), file: UploadFile = File(...)):
+def import_costs(
+    store_name: str = Form(...),
+    file: UploadFile = File(...),
+    user: dict = Depends(get_current_user),
+):
+    authorize_store(user, store_name)
     file_bytes = file.file.read()
     return services.import_cost_csv(store_name, file_bytes)
 
 
-# ---------- 全局成本（不区分店铺） ----------
+# ---------- 全局成本（仅主账号可管理） ----------
 
 @router.get("/global", response_model=List[Dict[str, Any]])
-def list_global_costs():
+def list_global_costs(_: dict = Depends(require_master)):
     return services.get_global_costs()
 
 
 @router.post("/global", response_model=Dict[str, Any])
-def save_global_costs(req: SaveGlobalCostsRequest):
+def save_global_costs(
+    req: SaveGlobalCostsRequest,
+    _: dict = Depends(require_master),
+):
     return services.save_global_costs([c.model_dump() for c in req.costs])
 
 
 @router.post("/global/refresh", response_model=Dict[str, Any])
-def refresh_global_cost_codes():
+def refresh_global_cost_codes(_: dict = Depends(require_master)):
     return services.refresh_global_cost_codes_service()
 
 
 @router.get("/global/export", response_class=PlainTextResponse)
-def export_global_costs(pending_only: bool = False):
+def export_global_costs(
+    pending_only: bool = False,
+    _: dict = Depends(require_master),
+):
     return services.export_global_cost_csv(pending_only)
 
 
 @router.post("/global/import", response_model=Dict[str, Any])
-def import_global_costs(file: UploadFile = File(...)):
+def import_global_costs(
+    file: UploadFile = File(...),
+    _: dict = Depends(require_master),
+):
     file_bytes = file.file.read()
     return services.import_global_cost_csv(file_bytes)
 
 
 @router.get("/global/unmapped", response_model=List[Dict[str, Any]])
-def list_unmapped_products():
+def list_unmapped_products(_: dict = Depends(require_master)):
     return services.get_unmapped_products()
 
 
 @router.post("/global/map", response_model=Dict[str, Any])
-def map_product_to_merchant_code(req: ProductMappingRequest):
+def map_product_to_merchant_code(
+    req: ProductMappingRequest,
+    _: dict = Depends(require_master),
+):
     return services.save_global_product_mapping_service(
         req.product_id, req.merchant_code, style_id=req.style_id, product_name=req.product_name
     )

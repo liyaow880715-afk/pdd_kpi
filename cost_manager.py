@@ -257,6 +257,69 @@ def _build_product_id_to_merchant_code(store_name: Optional[str]) -> Dict[str, s
     return mapping
 
 
+def _build_style_weighted_cost(
+    store_name: Optional[str],
+    style_map: Dict[str, str],
+    costs: Dict[str, Dict],
+) -> Dict[str, Dict[str, float]]:
+    """
+    当指标表是商品级、但映射是规格级时，按历史订单中各规格的销量加权，
+    推算出每个 product_id 的平均单位成本。
+    """
+    if not style_map:
+        return {}
+    store = _normalize_store(store_name)
+    style_qty: Dict[str, float] = {}
+    for d in list_available_dates(store):
+        try:
+            orders = load_daily_orders(d, store)
+            if orders.empty or "product_id" not in orders.columns:
+                continue
+            style_cols = _find_style_columns(orders)
+            sid_col = style_cols.get("style_id_col") or "style_id"
+            if sid_col not in orders.columns:
+                continue
+            qty_col = "valid_quantity" if "valid_quantity" in orders.columns else "quantity"
+            if qty_col not in orders.columns:
+                continue
+            for _, r in orders.iterrows():
+                pid = _normalize_product_id(r.get("product_id"))
+                sid = _normalize_style_id(r.get(sid_col))
+                qty = pd.to_numeric(r.get(qty_col, 0), errors="coerce") or 0
+                if not pid or not sid or qty <= 0:
+                    continue
+                key = f"{pid}::{sid}"
+                style_qty[key] = style_qty.get(key, 0.0) + float(qty)
+        except Exception:
+            continue
+
+    product_costs: Dict[str, Dict[str, float]] = {}
+    for key, code in style_map.items():
+        if "::" not in key:
+            continue
+        pid, sid = key.split("::", 1)
+        qty = style_qty.get(key, 0.0)
+        if qty <= 0:
+            continue
+        cost = costs.get(code, {})
+        pc = float(cost.get("product_cost", 0) or 0)
+        lc = float(cost.get("logistics_cost", 0) or 0)
+        entry = product_costs.setdefault(pid, {"product_cost": 0.0, "logistics_cost": 0.0, "qty": 0.0})
+        entry["product_cost"] += pc * qty
+        entry["logistics_cost"] += lc * qty
+        entry["qty"] += qty
+
+    result: Dict[str, Dict[str, float]] = {}
+    for pid, entry in product_costs.items():
+        qty = entry["qty"]
+        if qty > 0:
+            result[pid] = {
+                "product_cost": entry["product_cost"] / qty,
+                "logistics_cost": entry["logistics_cost"] / qty,
+            }
+    return result
+
+
 def apply_costs_to_metrics(metrics: pd.DataFrame, store_name: Optional[str]) -> pd.DataFrame:
     """
     将成本配置合并到商品指标表，并计算链接毛利与盈亏。
@@ -289,9 +352,13 @@ def apply_costs_to_metrics(metrics: pd.DataFrame, store_name: Optional[str]) -> 
         for code, info in merged_costs.items()
     ])
 
-    # 确保 merchant_code 列为字符串
+    # 确保 merchant_code 列为字符串，并把缺失标记统一成空字符串
     if "merchant_code" in df.columns:
-        df["merchant_code"] = df["merchant_code"].astype(str).str.strip()
+        df["merchant_code"] = (
+            df["merchant_code"].astype(str).str.strip()
+            .replace(["None", "nan", "NaN"], "")
+            .fillna("")
+        )
     else:
         df["merchant_code"] = ""
 
@@ -342,6 +409,28 @@ def apply_costs_to_metrics(metrics: pd.DataFrame, store_name: Optional[str]) -> 
     df["product_cost_unit"] = pd.to_numeric(df.get("product_cost_cost", df.get("product_cost", 0)), errors="coerce").fillna(0)
     df["logistics_cost_unit"] = pd.to_numeric(df.get("logistics_cost_cost", df.get("logistics_cost", 0)), errors="coerce").fillna(0)
 
+    # 兜底：商品级指标缺少 style_id 时，用全局规格映射的销量加权平均成本回退
+    blank_code_mask = df["merchant_code"].replace("", pd.NA).isna()
+    if blank_code_mask.any() and "product_id" in df.columns:
+        style_map = config.get(GLOBAL_STYLE_MAP_KEY, {})
+        if style_map:
+            style_weighted = _build_style_weighted_cost(store_name, style_map, merged_costs)
+            if style_weighted:
+                pc_map = {k: v["product_cost"] for k, v in style_weighted.items()}
+                lc_map = {k: v["logistics_cost"] for k, v in style_weighted.items()}
+                df.loc[blank_code_mask, "product_cost_unit"] = (
+                    df.loc[blank_code_mask, "product_id"]
+                    .apply(_normalize_product_id)
+                    .map(pc_map)
+                    .fillna(df.loc[blank_code_mask, "product_cost_unit"])
+                )
+                df.loc[blank_code_mask, "logistics_cost_unit"] = (
+                    df.loc[blank_code_mask, "product_id"]
+                    .apply(_normalize_product_id)
+                    .map(lc_map)
+                    .fillna(df.loc[blank_code_mask, "logistics_cost_unit"])
+                )
+
     # 成本按有效件数计算；如果没有件数则按有效订单数
     quantity_col = "valid_quantity" if "valid_quantity" in df.columns else "valid_order_count"
     df["cost_quantity"] = pd.to_numeric(df.get(quantity_col, 0), errors="coerce").fillna(0)
@@ -357,6 +446,11 @@ def apply_costs_to_metrics(metrics: pd.DataFrame, store_name: Optional[str]) -> 
     df["profit_loss"] = df["link_gross_profit"] - df["promo_spend"]
     df["gross_margin_rate"] = df.apply(
         lambda r: (r["link_gross_profit"] / r["valid_merchant_income"] * 100)
+        if r["valid_merchant_income"] else 0.0,
+        axis=1,
+    )
+    df["profit_loss_rate"] = df.apply(
+        lambda r: (r["profit_loss"] / r["valid_merchant_income"] * 100)
         if r["valid_merchant_income"] else 0.0,
         axis=1,
     )
