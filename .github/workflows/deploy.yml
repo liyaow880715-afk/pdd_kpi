@@ -8,34 +8,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Build frontend
-        run: |
-          cd frontend
-          npm ci
-          npm run build
-
       - name: Deploy to server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          source: "frontend/dist/"
-          target: "/home/ubuntu/pdd_kpi/frontend/"
-          strip_components: 1
-          rm: true
-
-      - name: Restart backend & reload nginx
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -44,12 +17,16 @@ jobs:
           script: |
             cd /home/ubuntu/pdd_kpi
             git pull origin master
-            ./venv/bin/pip install -r requirements.txt
+            ./venv/bin/pip install -r requirements.txt -q
             # 清理过时的字节码，避免运行时加载旧逻辑
             find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-            sudo systemctl restart pdd_kpi
+            cd frontend
+            npm ci
+            npm run build
+            cd ..
             sudo rm -rf /var/www/pdd_kpi/dist
-            sudo cp -r /home/ubuntu/pdd_kpi/frontend/dist /var/www/pdd_kpi/
+            sudo cp -r frontend/dist /var/www/pdd_kpi/
             sudo chown -R www-data:www-data /var/www/pdd_kpi
             sudo chmod -R 755 /var/www/pdd_kpi
+            sudo systemctl restart pdd_kpi
             sudo systemctl reload nginx
