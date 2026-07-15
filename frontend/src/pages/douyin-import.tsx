@@ -71,8 +71,9 @@ export function DouyinImportPage() {
         setMessage(res.error)
         return
       }
+      const dates = res.processed_dates || [res.date]
       setMessage(
-        `导入成功。店铺：${res.store_name}，日期：${res.date}；商品 ${res.product_rows || 0} 行，订单 ${res.order_rows || 0} 行`
+        `导入成功。店铺：${res.store_name}，处理日期：${dates.join(", ")}；商品 ${res.product_rows || 0} 行，订单 ${res.order_rows || 0} 行`
       )
       setPromoFile(null)
       setOrderFile(null)
@@ -129,7 +130,7 @@ export function DouyinImportPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>日期</Label>
+              <Label>日期（单日文件必填，全数据文件可任选一天作为兜底）</Label>
               <Input type="date" value={importDate} onChange={(e) => setImportDate(e.target.value)} />
             </div>
             <div className="flex items-end">

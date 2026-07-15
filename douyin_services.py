@@ -44,50 +44,75 @@ def _json_safe(obj: Any) -> Any:
 
 def import_douyin_daily_data(
     store_name: str,
-    import_date: datetime.date,
+    import_date: Optional[datetime.date] = None,
     promo_bytes: Optional[bytes] = None,
     promo_filename: Optional[str] = None,
     order_bytes: Optional[bytes] = None,
     order_filename: Optional[str] = None,
 ) -> Dict[str, Any]:
-    date_str = _date_str(import_date)
-    product_rows = 0
-    order_rows = 0
+    """导入抖音每日数据。
 
-    existing_product, existing_orders = load_daily_data(store_name, date_str)
+    支持两种文件：
+    - 单日文件：只包含一个日期，按该日期保存。
+    - 全数据文件：包含多个日期，自动按日期拆分保存。
+    """
+    processed_dates: set = set()
+    total_product_rows = 0
+    total_order_rows = 0
 
     if promo_bytes:
         promo_df = read_promotion_file(promo_bytes, promo_filename or "promo.xlsx")
         if not promo_df.empty:
-            # 只保留目标日期
-            promo_df = promo_df[promo_df["date"] == date_str]
-            if not promo_df.empty:
-                existing_product = promo_df
-                product_rows = len(promo_df)
+            # 如果指定了日期且文件里有该日期，优先按指定日期处理；否则处理文件内所有日期
+            promo_dates = promo_df["date"].dropna().unique()
+            if import_date and _date_str(import_date) in promo_dates:
+                promo_dates = [_date_str(import_date)]
+            for d in promo_dates:
+                day_df = promo_df[promo_df["date"] == d]
+                if day_df.empty:
+                    continue
+                existing_orders = load_daily_data(store_name, d)[1]
+                meta = {
+                    "promo_file": promo_filename or "",
+                    "order_file": order_filename or "",
+                    "product_rows": len(day_df),
+                    "order_rows": len(existing_orders),
+                    "saved_at": datetime.datetime.now().isoformat(),
+                }
+                save_daily_data(store_name, d, day_df, existing_orders, meta=meta)
+                processed_dates.add(d)
+                total_product_rows += len(day_df)
 
     if order_bytes:
         order_df = read_order_file(order_bytes, order_filename or "order.csv")
         if not order_df.empty:
-            order_df = order_df[order_df["order_date"] == date_str]
-            if not order_df.empty:
-                existing_orders = order_df
-                order_rows = len(order_df)
+            order_dates = order_df["order_date"].dropna().unique()
+            if import_date and _date_str(import_date) in order_dates:
+                order_dates = [_date_str(import_date)]
+            for d in order_dates:
+                day_orders = order_df[order_df["order_date"] == d]
+                if day_orders.empty:
+                    continue
+                existing_product = load_daily_data(store_name, d)[0]
+                meta = {
+                    "promo_file": promo_filename or "",
+                    "order_file": order_filename or "",
+                    "product_rows": len(existing_product),
+                    "order_rows": len(day_orders),
+                    "saved_at": datetime.datetime.now().isoformat(),
+                }
+                save_daily_data(store_name, d, existing_product, day_orders, meta=meta)
+                processed_dates.add(d)
+                total_order_rows += len(day_orders)
 
-    meta = {
-        "promo_file": promo_filename or "",
-        "order_file": order_filename or "",
-        "product_rows": product_rows,
-        "order_rows": order_rows,
-        "saved_at": datetime.datetime.now().isoformat(),
-    }
-    save_daily_data(store_name, date_str, existing_product, existing_orders, meta=meta)
     bump_data_version()
 
     return {
         "store_name": store_name,
-        "date": date_str,
-        "product_rows": product_rows,
-        "order_rows": order_rows,
+        "date": _date_str(import_date) if import_date else None,
+        "processed_dates": sorted(processed_dates),
+        "product_rows": total_product_rows,
+        "order_rows": total_order_rows,
     }
 
 

@@ -13,7 +13,7 @@ router = APIRouter()
 @router.post("/import", response_model=Dict[str, Any])
 def import_douyin_data(
     store_name: str = Form(...),
-    import_date: datetime.date = Form(...),
+    import_date: Optional[datetime.date] = Form(None),
     promo_file: Optional[UploadFile] = File(None),
     order_file: Optional[UploadFile] = File(None),
     user: dict = Depends(get_current_user),
