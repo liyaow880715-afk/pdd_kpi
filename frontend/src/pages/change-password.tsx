@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { Lock, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,12 +9,14 @@ import { changePassword, logout } from "@/api/auth"
 
 export function ChangePasswordPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [oldPassword, setOldPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
   const [loading, setLoading] = useState(false)
+  const forced = searchParams.get("forced") === "1"
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -31,10 +33,10 @@ export function ChangePasswordPage() {
     setLoading(true)
     try {
       await changePassword(oldPassword, newPassword)
-      setSuccess("密码修改成功，请重新登录")
+      setSuccess("密码修改成功")
       setTimeout(() => {
-        logout()
-      }, 1500)
+        navigate("/", { replace: true })
+      }, 800)
     } catch (err: any) {
       setError(err.message || "修改失败")
     } finally {
@@ -42,10 +44,19 @@ export function ChangePasswordPage() {
     }
   }
 
+  const handleBack = () => {
+    if (forced) {
+      // 强制改密流程不允许返回，只能退出登录
+      logout()
+    } else {
+      navigate(-1)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+        <Button variant="ghost" size="icon" onClick={handleBack}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <h1 className="text-2xl font-bold">修改密码</h1>
@@ -55,7 +66,7 @@ export function ChangePasswordPage() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Lock className="h-4 w-4" />
-            修改登录密码
+            {forced ? "首次登录，请修改默认密码" : "修改登录密码"}
           </CardTitle>
         </CardHeader>
         <CardContent>

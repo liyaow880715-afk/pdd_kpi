@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,18 +9,24 @@ import { login } from "@/api/auth"
 
 export function LoginPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [username, setUsername] = useState("admin")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const forced = searchParams.get("forced") === "1"
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError("")
     try {
-      await login(username, password)
-      navigate("/", { replace: true })
+      const result = await login(username, password)
+      if (result.requirePasswordChange) {
+        navigate("/change-password?forced=1", { replace: true })
+      } else {
+        navigate("/", { replace: true })
+      }
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -39,6 +45,11 @@ export function LoginPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {forced && (
+              <div className="text-sm text-amber-600 text-center">
+                请先修改默认密码后再继续使用
+              </div>
+            )}
             {error && <div className="text-sm text-destructive text-center">{error}</div>}
             <div className="space-y-2">
               <Label>用户名</Label>

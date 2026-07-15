@@ -33,7 +33,12 @@ def login(req: LoginRequest):
         },
         expires_delta=timedelta(days=7),
     )
-    return {"access_token": access_token, "token_type": "bearer", "role": user["role"]}
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "role": user["role"],
+        "require_password_change": not user.get("password_changed", True),
+    }
 
 
 @router.get("/me", response_model=Dict[str, Any])
@@ -46,6 +51,7 @@ def me(current_user: dict = Depends(get_current_user)):
         "username": username,
         "role": user.get("role", "sub"),
         "allowed_stores": user.get("allowed_stores", []),
+        "require_password_change": not user.get("password_changed", True),
     }
 
 
@@ -64,4 +70,12 @@ def change_password(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="原密码错误")
 
     update_user(username, password=req.new_password)
-    return {"ok": True}
+    new_token = create_access_token(
+        {
+            "sub": username,
+            "role": user["role"],
+            "allowed_stores": user.get("allowed_stores", []),
+        },
+        expires_delta=timedelta(days=7),
+    )
+    return {"ok": True, "access_token": new_token}

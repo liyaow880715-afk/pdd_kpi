@@ -50,23 +50,35 @@ export function isMaster(): boolean {
   return getCurrentUser()?.role === "master"
 }
 
-export async function login(username: string, password: string) {
+export type LoginResult = {
+  token: string
+  requirePasswordChange: boolean
+}
+
+export async function login(username: string, password: string): Promise<LoginResult> {
   const res = await api.post("/auth/login", { username, password })
   const token = res.data.access_token
   setToken(token)
-  return token
+  return {
+    token,
+    requirePasswordChange: res.data.require_password_change === true,
+  }
 }
 
-export async function changePassword(oldPassword: string, newPassword: string) {
+export async function changePassword(oldPassword: string, newPassword: string): Promise<string> {
   const res = await api.post("/auth/change-password", {
     old_password: oldPassword,
     new_password: newPassword,
   })
-  return res.data
+  const token = res.data.access_token
+  if (token) {
+    setToken(token)
+  }
+  return token
 }
 
 export async function getMe() {
-  const res = await api.get<UserInfo>("/auth/me")
+  const res = await api.get<UserInfo & { require_password_change?: boolean }>("/auth/me")
   return res.data
 }
 

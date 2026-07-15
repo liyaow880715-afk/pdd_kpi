@@ -46,16 +46,21 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
-def ensure_admin(default_password: str):
+def ensure_admin(default_password: str, password_changed: bool = False):
     """初始化时保证 admin 主账号存在"""
     data = _load_raw()
     users = data.get("users", {})
     if "admin" in users:
+        # 兼容旧数据：若字段不存在，默认按已修改处理，避免强制已存在账号改密
+        if "password_changed" not in users["admin"]:
+            users["admin"]["password_changed"] = True
+            _save_users(users)
         return
     users["admin"] = {
         "role": "master",
         "password_hash": hash_password(default_password),
         "allowed_stores": [],
+        "password_changed": password_changed,
     }
     _save_users(users)
 
@@ -89,6 +94,7 @@ def create_user(
         "role": role,
         "password_hash": hash_password(password),
         "allowed_stores": list(allowed_stores or []),
+        "password_changed": False,
     }
     _save_users(users)
     return {"username": username, **sanitize_user(users[username])}
@@ -105,6 +111,7 @@ def update_user(
         raise ValueError("用户不存在")
     if password is not None:
         user["password_hash"] = hash_password(password)
+        user["password_changed"] = True
     if allowed_stores is not None:
         user["allowed_stores"] = list(allowed_stores)
     _save_users(users)

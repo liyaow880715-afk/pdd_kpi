@@ -4,6 +4,8 @@
 
 import io
 import datetime
+import threading
+import time
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -58,6 +60,61 @@ from ai_analyzer import generate_ai_report
 from api_client import test_connection
 from wecom import send_wecom_report, save_wecom_config, listen_wecom_chatid
 from report_builder import build_daily_report
+
+
+# ---------- 内存缓存 ----------
+
+_CACHE_TTL_SECONDS = 300  # 5 分钟
+_DATA_VERSION = 0
+_CACHE: Dict[str, tuple] = {}
+_CACHE_LOCK = threading.Lock()
+
+
+def bump_data_version():
+    """数据发生变更（导入/删除）时递增版本号并清空缓存"""
+    global _DATA_VERSION
+    with _CACHE_LOCK:
+        _DATA_VERSION += 1
+        _CACHE.clear()
+
+
+def _make_hashable(obj: Any) -> Any:
+    if isinstance(obj, list):
+        return tuple(_make_hashable(x) for x in obj)
+    if isinstance(obj, tuple):
+        return tuple(_make_hashable(x) for x in obj)
+    if isinstance(obj, dict):
+        return tuple((k, _make_hashable(v)) for k, v in sorted(obj.items()))
+    return obj
+
+
+def _cache_key(func_name: str, args: tuple, kwargs: dict) -> str:
+    return str(
+        (
+            func_name,
+            tuple(_make_hashable(a) for a in args),
+            tuple((k, _make_hashable(v)) for k, v in sorted(kwargs.items())),
+            _DATA_VERSION,
+        )
+    )
+
+
+def cached_with_ttl(ttl_seconds: float):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            key = _cache_key(func.__name__, args, kwargs)
+            with _CACHE_LOCK:
+                entry = _CACHE.get(key)
+                if entry and entry[0] > time.monotonic():
+                    return entry[1]
+            result = func(*args, **kwargs)
+            with _CACHE_LOCK:
+                _CACHE[key] = (time.monotonic() + ttl_seconds, result)
+            return result
+
+        return wrapper
+
+    return decorator
 
 
 def _date_str(d) -> str:
@@ -336,6 +393,7 @@ def import_daily_data(
     total_order_rows = sum(r.get("order_rows", 0) for r in results if r.get("orders_saved"))
     processed_dates = sorted(set(r.get("date") for r in results if r.get("date")))
 
+    bump_data_version()
     return {
         "store_name": store_name,
         "import_date": date_str,
@@ -370,6 +428,7 @@ def save_merchant_mapping(store_name: str, product_id: str, merchant_code: str) 
 
 # ---------- 指标 ----------
 
+@cached_with_ttl(_CACHE_TTL_SECONDS)
 def load_analysis_data(
     store_name: str,
     start_date: datetime.date,
@@ -416,6 +475,7 @@ def load_analysis_data(
     })
 
 
+@cached_with_ttl(_CACHE_TTL_SECONDS)
 def load_trend_data(
     store_names: List[str],
     start_date: datetime.date,
@@ -513,6 +573,7 @@ def _recompute_kpis(totals: Dict[str, float]) -> Dict[str, float]:
     }
 
 
+@cached_with_ttl(_CACHE_TTL_SECONDS)
 def get_dashboard_summary(
     start_date: datetime.date,
     end_date: datetime.date,
@@ -838,4 +899,5 @@ def get_records(store_name: Optional[str] = None) -> List[Dict[str, Any]]:
 
 def delete_record(store_name: str, date: datetime.date) -> Dict[str, Any]:
     delete_daily_data(store_name, _date_str(date))
+    bump_data_version()
     return {"deleted": True, "store_name": store_name, "date": _date_str(date)}

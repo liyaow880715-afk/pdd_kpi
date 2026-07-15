@@ -119,4 +119,6 @@ def accessible_stores(user: dict, all_stores: List[str]) -> List[str]:
 
 def init_auth():
     """启动时确保 admin 主账号存在"""
-    ensure_admin(DEFAULT_ADMIN_PASSWORD)
+    # 如果通过环境变量设置了密码，认为已经完成首次修改
+    password_changed = os.getenv("ADMIN_PASSWORD") is not None
+    ensure_admin(DEFAULT_ADMIN_PASSWORD, password_changed=password_changed)
