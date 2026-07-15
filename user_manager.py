@@ -2,7 +2,7 @@
 用户管理
 - 维护 data/users.json
 - 主账号(role=master) 拥有全部权限
-- 子账号(role=sub) 仅可访问 allowed_stores 中的店铺
+- 子账号(role=sub) 可访问 allowed_stores 中的店铺、allowed_pages 中的功能页
 """
 
 import json
@@ -46,23 +46,37 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
+DEFAULT_SUB_PAGES = ["overview", "stores", "import", "metrics", "orders", "costs"]
+
+
 def ensure_admin(default_password: str, password_changed: bool = False):
     """初始化时保证 admin 主账号存在"""
     data = _load_raw()
     users = data.get("users", {})
+    updated = False
     if "admin" in users:
         # 兼容旧数据：若字段不存在，默认按已修改处理，避免强制已存在账号改密
         if "password_changed" not in users["admin"]:
             users["admin"]["password_changed"] = True
-            _save_users(users)
-        return
-    users["admin"] = {
-        "role": "master",
-        "password_hash": hash_password(default_password),
-        "allowed_stores": [],
-        "password_changed": password_changed,
-    }
-    _save_users(users)
+            updated = True
+    else:
+        users["admin"] = {
+            "role": "master",
+            "password_hash": hash_password(default_password),
+            "allowed_stores": [],
+            "password_changed": password_changed,
+            "allowed_pages": [],
+        }
+        updated = True
+
+    # 为旧子账号补齐默认页面权限
+    for u in users.values():
+        if u.get("role") == "sub" and "allowed_pages" not in u:
+            u["allowed_pages"] = DEFAULT_SUB_PAGES.copy()
+            updated = True
+
+    if updated:
+        _save_users(users)
 
 
 def load_users() -> Dict[str, dict]:
@@ -86,6 +100,7 @@ def create_user(
     password: str,
     role: str = "sub",
     allowed_stores: Optional[List[str]] = None,
+    allowed_pages: Optional[List[str]] = None,
 ) -> dict:
     users = load_users()
     if username in users:
@@ -95,6 +110,7 @@ def create_user(
         "password_hash": hash_password(password),
         "allowed_stores": list(allowed_stores or []),
         "password_changed": False,
+        "allowed_pages": list(allowed_pages) if allowed_pages is not None else DEFAULT_SUB_PAGES.copy(),
     }
     _save_users(users)
     return {"username": username, **sanitize_user(users[username])}
@@ -104,6 +120,7 @@ def update_user(
     username: str,
     password: Optional[str] = None,
     allowed_stores: Optional[List[str]] = None,
+    allowed_pages: Optional[List[str]] = None,
 ) -> dict:
     users = load_users()
     user = users.get(username)
@@ -114,6 +131,8 @@ def update_user(
         user["password_changed"] = True
     if allowed_stores is not None:
         user["allowed_stores"] = list(allowed_stores)
+    if allowed_pages is not None:
+        user["allowed_pages"] = list(allowed_pages)
     _save_users(users)
     return {"username": username, **sanitize_user(user)}
 
@@ -141,3 +160,15 @@ def allowed_store_names(user: dict, all_stores: List[str]) -> List[str]:
         return list(all_stores)
     allowed = set(user.get("allowed_stores") or [])
     return [s for s in all_stores if s in allowed]
+
+
+def allowed_page_names(user: dict) -> List[str]:
+    if user.get("role") == "master":
+        return DEFAULT_SUB_PAGES + ["ai", "wecom", "users"]
+    return list(user.get("allowed_pages") or DEFAULT_SUB_PAGES)
+
+
+def can_access_page(user: dict, page: str) -> bool:
+    if user.get("role") == "master":
+        return True
+    return page in (user.get("allowed_pages") or DEFAULT_SUB_PAGES)

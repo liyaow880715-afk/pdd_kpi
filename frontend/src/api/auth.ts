@@ -6,6 +6,7 @@ export type UserInfo = {
   username: string
   role: "master" | "sub"
   allowed_stores: string[]
+  allowed_pages: string[]
 }
 
 export function getToken(): string | null {
@@ -43,6 +44,7 @@ export function getCurrentUser(): UserInfo | null {
     username: payload.sub || "",
     role: payload.role || "sub",
     allowed_stores: payload.allowed_stores || [],
+    allowed_pages: payload.allowed_pages || [],
   }
 }
 
@@ -80,6 +82,13 @@ export async function changePassword(oldPassword: string, newPassword: string): 
 export async function getMe() {
   const res = await api.get<UserInfo & { require_password_change?: boolean }>("/auth/me")
   return res.data
+}
+
+export function canAccessPage(page: string): boolean {
+  const user = getCurrentUser()
+  if (!user) return false
+  if (user.role === "master") return true
+  return user.allowed_pages.includes(page)
 }
 
 export function logout() {

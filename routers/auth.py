@@ -20,17 +20,22 @@ class ChangePasswordRequest(BaseModel):
     new_password: str
 
 
+def _token_payload(user: dict, username: str) -> dict:
+    return {
+        "sub": username,
+        "role": user["role"],
+        "allowed_stores": user.get("allowed_stores", []),
+        "allowed_pages": user.get("allowed_pages", []),
+    }
+
+
 @router.post("/login", response_model=Dict[str, Any])
 def login(req: LoginRequest):
     user = authenticate_user(req.username, req.password)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="用户名或密码错误")
     access_token = create_access_token(
-        {
-            "sub": req.username,
-            "role": user["role"],
-            "allowed_stores": user.get("allowed_stores", []),
-        },
+        _token_payload(user, req.username),
         expires_delta=timedelta(days=7),
     )
     return {
@@ -51,6 +56,7 @@ def me(current_user: dict = Depends(get_current_user)):
         "username": username,
         "role": user.get("role", "sub"),
         "allowed_stores": user.get("allowed_stores", []),
+        "allowed_pages": user.get("allowed_pages", []),
         "require_password_change": not user.get("password_changed", True),
     }
 
@@ -71,11 +77,7 @@ def change_password(
 
     update_user(username, password=req.new_password)
     new_token = create_access_token(
-        {
-            "sub": username,
-            "role": user["role"],
-            "allowed_stores": user.get("allowed_stores", []),
-        },
+        _token_payload(user, username),
         expires_delta=timedelta(days=7),
     )
     return {"ok": True, "access_token": new_token}

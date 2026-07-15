@@ -4,6 +4,7 @@ export type User = {
   username: string
   role: "master" | "sub"
   allowed_stores: string[]
+  allowed_pages: string[]
 }
 
 export type CreateUserRequest = {
@@ -11,11 +12,13 @@ export type CreateUserRequest = {
   password: string
   role: "master" | "sub"
   allowed_stores: string[]
+  allowed_pages: string[]
 }
 
 export type UpdateUserRequest = {
   password?: string
   allowed_stores?: string[]
+  allowed_pages?: string[]
 }
 
 export async function getUsers() {

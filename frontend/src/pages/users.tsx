@@ -15,6 +15,17 @@ import {
 import { getStores } from "@/api/client"
 import { createUser, deleteUser, getUsers, updateUser, type User } from "@/api/users"
 
+const pageOptions = [
+  { id: "overview", label: "总览" },
+  { id: "stores", label: "店铺" },
+  { id: "import", label: "导入" },
+  { id: "metrics", label: "指标" },
+  { id: "orders", label: "订单" },
+  { id: "costs", label: "成本" },
+  { id: "ai", label: "AI" },
+  { id: "wecom", label: "企微" },
+]
+
 export function UsersPage() {
   const [users, setUsers] = useState<User[]>([])
   const [stores, setStores] = useState<{ id: string; name: string }[]>([])
@@ -25,9 +36,11 @@ export function UsersPage() {
   const [newPassword, setNewPassword] = useState("")
   const [newRole, setNewRole] = useState<"sub" | "master">("sub")
   const [newStores, setNewStores] = useState<string[]>([])
+  const [newPages, setNewPages] = useState<string[]>(pageOptions.map((p) => p.id))
 
   const [editingUser, setEditingUser] = useState<string | null>(null)
   const [editStores, setEditStores] = useState<string[]>([])
+  const [editPages, setEditPages] = useState<string[]>([])
   const [editPassword, setEditPassword] = useState("")
 
   const storeNames = useMemo(() => stores.map((s) => s.name), [stores])
@@ -58,11 +71,13 @@ export function UsersPage() {
         password: newPassword,
         role: newRole,
         allowed_stores: newRole === "master" ? [] : newStores,
+        allowed_pages: newRole === "master" ? [] : newPages,
       })
       setNewUsername("")
       setNewPassword("")
       setNewRole("sub")
       setNewStores([])
+      setNewPages(pageOptions.map((p) => p.id))
       await fetchData()
     } catch (err: any) {
       setError(err.message || "创建失败")
@@ -82,19 +97,26 @@ export function UsersPage() {
   const startEdit = (user: User) => {
     setEditingUser(user.username)
     setEditStores(user.allowed_stores || [])
+    setEditPages(user.allowed_pages || pageOptions.map((p) => p.id))
     setEditPassword("")
   }
 
   const cancelEdit = () => {
     setEditingUser(null)
     setEditStores([])
+    setEditPages([])
     setEditPassword("")
   }
 
   const saveEdit = async (username: string) => {
     try {
-      const payload: { allowed_stores?: string[]; password?: string } = {
+      const payload: {
+        allowed_stores?: string[]
+        allowed_pages?: string[]
+        password?: string
+      } = {
         allowed_stores: editStores,
+        allowed_pages: editPages,
       }
       if (editPassword.trim()) {
         payload.password = editPassword.trim()
@@ -107,13 +129,37 @@ export function UsersPage() {
     }
   }
 
-  const toggleStore = (store: string, selected: string[], setter: (v: string[]) => void) => {
-    if (selected.includes(store)) {
-      setter(selected.filter((s) => s !== store))
+  const toggleItem = (id: string, selected: string[], setter: (v: string[]) => void) => {
+    if (selected.includes(id)) {
+      setter(selected.filter((s) => s !== id))
     } else {
-      setter([...selected, store])
+      setter([...selected, id])
     }
   }
+
+  const Checkboxes = ({
+    options,
+    selected,
+    onChange,
+  }: {
+    options: { id: string; label: string }[]
+    selected: string[]
+    onChange: (v: string[]) => void
+  }) => (
+    <div className="flex flex-wrap gap-3 mt-2">
+      {options.map((opt) => (
+        <label key={opt.id} className="flex items-center gap-1.5 text-sm">
+          <input
+            type="checkbox"
+            className="h-4 w-4 rounded border-input"
+            checked={selected.includes(opt.id)}
+            onChange={() => toggleItem(opt.id, selected, onChange)}
+          />
+          <span className="text-muted-foreground">{opt.label}</span>
+        </label>
+      ))}
+    </div>
+  )
 
   const StoreCheckboxes = ({
     selected,
@@ -129,7 +175,7 @@ export function UsersPage() {
             type="checkbox"
             className="h-4 w-4 rounded border-input"
             checked={selected.includes(name)}
-            onChange={() => toggleStore(name, selected, onChange)}
+            onChange={() => toggleItem(name, selected, onChange)}
           />
           <span className="text-muted-foreground">{name}</span>
         </label>
@@ -189,10 +235,16 @@ export function UsersPage() {
               </div>
             </div>
             {newRole === "sub" && (
-              <div>
-                <Label className="mb-2 block">店铺权限</Label>
-                <StoreCheckboxes selected={newStores} onChange={setNewStores} />
-              </div>
+              <>
+                <div>
+                  <Label className="mb-2 block">店铺权限</Label>
+                  <StoreCheckboxes selected={newStores} onChange={setNewStores} />
+                </div>
+                <div>
+                  <Label className="mb-2 block">功能权限</Label>
+                  <Checkboxes options={pageOptions} selected={newPages} onChange={setNewPages} />
+                </div>
+              </>
             )}
             <Button type="submit" disabled={loading}>
               <Plus className="mr-1 h-4 w-4" />
@@ -213,6 +265,7 @@ export function UsersPage() {
                 <TableHead>用户名</TableHead>
                 <TableHead>角色</TableHead>
                 <TableHead>店铺权限</TableHead>
+                <TableHead>功能权限</TableHead>
                 <TableHead className="text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
@@ -236,6 +289,21 @@ export function UsersPage() {
                       <span className="text-sm">{user.allowed_stores.join(", ")}</span>
                     ) : (
                       <span className="text-sm text-muted-foreground">未分配店铺</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {user.role === "master" ? (
+                      <span className="text-sm text-muted-foreground">全部功能</span>
+                    ) : editingUser === user.username ? (
+                      <Checkboxes options={pageOptions} selected={editPages} onChange={setEditPages} />
+                    ) : user.allowed_pages.length > 0 ? (
+                      <span className="text-sm">
+                        {user.allowed_pages
+                          .map((id) => pageOptions.find((p) => p.id === id)?.label || id)
+                          .join(", ")}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">未分配功能</span>
                     )}
                     {editingUser === user.username && (
                       <div className="mt-3 flex items-center gap-2">
@@ -286,7 +354,7 @@ export function UsersPage() {
               ))}
               {users.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                     暂无用户
                   </TableCell>
                 </TableRow>

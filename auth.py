@@ -10,7 +10,9 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from user_manager import (
+    allowed_page_names,
     allowed_store_names,
+    can_access_page,
     can_access_store,
     ensure_admin,
     get_user,
@@ -115,6 +117,25 @@ def authorize_stores(user: dict, store_names: List[str]) -> List[str]:
 
 def accessible_stores(user: dict, all_stores: List[str]) -> List[str]:
     return allowed_store_names(user, all_stores)
+
+
+def authorize_page(user: dict, page: str):
+    if not can_access_page(user, page):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="无权访问该功能",
+        )
+
+
+def require_page(page: str):
+    def checker(user: dict = Depends(get_current_user)):
+        authorize_page(user, page)
+        return user
+    return checker
+
+
+def accessible_pages(user: dict) -> List[str]:
+    return allowed_page_names(user)
 
 
 def init_auth():

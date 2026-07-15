@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 import services
-from auth import authorize_store, get_current_user, require_master
+from auth import authorize_store, get_current_user, require_master, require_page
 
 router = APIRouter()
 
@@ -18,14 +18,14 @@ class AIReportRequest(BaseModel):
 
 
 @router.get("/config", response_model=Dict[str, Any])
-def get_config(_: dict = Depends(require_master)):
+def get_config(_: dict = Depends(require_page("ai"))):
     return services.get_ai_config()
 
 
 @router.post("/config", response_model=Dict[str, Any])
 def update_config(
     config: Dict[str, Any],
-    _: dict = Depends(require_master),
+    _: dict = Depends(require_page("ai")),
 ):
     return services.update_ai_config(config)
 
@@ -33,7 +33,7 @@ def update_config(
 @router.post("/test", response_model=Dict[str, Any])
 def test_ai(
     config: Dict[str, Any],
-    _: dict = Depends(require_master),
+    _: dict = Depends(require_page("ai")),
 ):
     return services.test_ai_service(config)
 

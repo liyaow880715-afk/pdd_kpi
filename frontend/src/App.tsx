@@ -18,7 +18,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { AuthGuard } from "@/components/auth-guard"
-import { getCurrentUser, isMaster, logout } from "@/api/auth"
+import { canAccessPage, getCurrentUser, isMaster, logout } from "@/api/auth"
 import { LoginPage } from "@/pages/login"
 import { DashboardPage } from "@/pages/dashboard"
 import { StoresPage } from "@/pages/stores"
@@ -31,25 +31,24 @@ import { WecomPage } from "@/pages/wecom"
 import { UsersPage } from "@/pages/users"
 import { ChangePasswordPage } from "@/pages/change-password"
 
-const baseNavItems = [
-  { to: "/", label: "总览", icon: LayoutDashboard },
-  { to: "/stores", label: "店铺", icon: Store },
-  { to: "/import", label: "导入", icon: Upload },
-  { to: "/metrics", label: "指标", icon: BarChart3 },
-  { to: "/orders", label: "订单", icon: ShoppingCart },
-  { to: "/costs", label: "成本", icon: Coins },
-]
-
-const masterNavItems = [
-  { to: "/ai", label: "AI", icon: Bot },
-  { to: "/wecom", label: "企微", icon: MessageCircle },
-  { to: "/users", label: "用户", icon: Users },
+const allNavItems = [
+  { id: "overview", to: "/", label: "总览", icon: LayoutDashboard },
+  { id: "stores", to: "/stores", label: "店铺", icon: Store },
+  { id: "import", to: "/import", label: "导入", icon: Upload },
+  { id: "metrics", to: "/metrics", label: "指标", icon: BarChart3 },
+  { id: "orders", to: "/orders", label: "订单", icon: ShoppingCart },
+  { id: "costs", to: "/costs", label: "成本", icon: Coins },
+  { id: "ai", to: "/ai", label: "AI", icon: Bot },
+  { id: "wecom", to: "/wecom", label: "企微", icon: MessageCircle },
+  { id: "users", to: "/users", label: "用户", icon: Users },
 ]
 
 function Sidebar({ onClose }: { onClose?: () => void }) {
   const user = getCurrentUser()
   const showMaster = isMaster()
-  const navItems = [...baseNavItems, ...(showMaster ? masterNavItems : [])]
+  const navItems = allNavItems.filter((item) =>
+    showMaster ? true : canAccessPage(item.id)
+  )
 
   return (
     <aside className="w-64 border-r bg-card min-h-screen p-4 flex flex-col">
