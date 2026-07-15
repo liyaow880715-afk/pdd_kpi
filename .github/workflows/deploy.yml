@@ -45,6 +45,8 @@ jobs:
             cd /home/ubuntu/pdd_kpi
             git pull origin master
             ./venv/bin/pip install -r requirements.txt
+            # 清理过时的字节码，避免运行时加载旧逻辑
+            find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
             sudo systemctl restart pdd_kpi
             sudo rm -rf /var/www/pdd_kpi/dist
             sudo cp -r /home/ubuntu/pdd_kpi/frontend/dist /var/www/pdd_kpi/
