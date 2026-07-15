@@ -131,7 +131,8 @@ const trendCharts = [
 ]
 
 export function DashboardPage() {
-  const [storeCount, setStoreCount] = useState(0)
+  const [stores, setStores] = useState<{ id: string; name: string }[]>([])
+  const [selectedStores, setSelectedStores] = useState<string[]>([])
   const [startDate, setStartDate] = useState(() => {
     const d = new Date()
     d.setDate(d.getDate() - 30)
@@ -145,15 +146,28 @@ export function DashboardPage() {
   const [activeTab, setActiveTab] = useState("overview")
 
   useEffect(() => {
-    getStores().then((s) => setStoreCount(s.length))
-    fetchSummary()
+    getStores().then((s) => {
+      setStores(s)
+      setSelectedStores(s.map((x) => x.name))
+    })
   }, [])
 
+  useEffect(() => {
+    if (selectedStores.length > 0) {
+      fetchSummary()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStores.length])
+
   const fetchSummary = async () => {
+    if (selectedStores.length === 0) {
+      setMessage("请至少选择一个店铺")
+      return
+    }
     setLoading(true)
     setMessage("")
     try {
-      const data = await getDashboardSummary(startDate, endDate)
+      const data = await getDashboardSummary(startDate, endDate, selectedStores)
       setKpis(data.kpis)
       setTrend(data.trend)
     } catch (err: any) {
@@ -163,13 +177,19 @@ export function DashboardPage() {
     }
   }
 
+  const toggleStore = (name: string) => {
+    setSelectedStores((prev) =>
+      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
+    )
+  }
+
   return (
     <div className="space-y-4">
       <h2 className="text-2xl font-bold">总览</h2>
 
       <Card>
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
             <div className="space-y-2">
               <Label>开始日期</Label>
               <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
@@ -178,7 +198,27 @@ export function DashboardPage() {
               <Label>结束日期</Label>
               <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
             </div>
-            <Button onClick={fetchSummary} disabled={loading} className="lg:col-span-3">
+            <div className="lg:col-span-3 space-y-2">
+              <Label>店铺筛选</Label>
+              <div className="flex flex-wrap gap-2 min-h-[40px] items-center rounded-md border border-input bg-background px-3 py-2">
+                {stores.length === 0 ? (
+                  <span className="text-sm text-muted-foreground">暂无店铺</span>
+                ) : (
+                  stores.map((s) => (
+                    <label key={s.id} className="flex items-center gap-1 text-sm">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-input"
+                        checked={selectedStores.includes(s.name)}
+                        onChange={() => toggleStore(s.name)}
+                      />
+                      <span className="text-muted-foreground">{s.name}</span>
+                    </label>
+                  ))
+                )}
+              </div>
+            </div>
+            <Button onClick={fetchSummary} disabled={loading}>
               <Calendar className="h-4 w-4 mr-1" /> {loading ? "加载中..." : "查询"}
             </Button>
           </div>
@@ -192,11 +232,11 @@ export function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-medium">店铺数量</CardTitle>
+            <CardTitle className="text-sm font-medium">已选店铺</CardTitle>
             <Store className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{storeCount}</div>
+            <div className="text-3xl font-bold">{selectedStores.length}</div>
           </CardContent>
         </Card>
         <Card>

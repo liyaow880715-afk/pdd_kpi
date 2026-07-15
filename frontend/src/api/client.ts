@@ -125,10 +125,12 @@ export async function getRecords(storeName?: string) {
   return res.data
 }
 
-export async function getDashboardSummary(startDate: string, endDate: string) {
-  const res = await api.get("/dashboard/summary", {
-    params: { start_date: startDate, end_date: endDate },
-  })
+export async function getDashboardSummary(startDate: string, endDate: string, storeNames?: string[]) {
+  const params: Record<string, any> = { start_date: startDate, end_date: endDate }
+  if (storeNames && storeNames.length > 0) {
+    params.store_names = storeNames
+  }
+  const res = await api.get("/dashboard/summary", { params })
   return res.data as { store_count: number; start_date: string; end_date: string; kpis: Kpis; trend: any[] }
 }
 
