@@ -16,17 +16,11 @@ import {
   type DouyinImportRecord,
 } from "@/api/client"
 
-function getYesterday() {
-  const d = new Date()
-  d.setDate(d.getDate() - 1)
-  return d.toISOString().split("T")[0]
-}
-
 export function DouyinImportPage() {
   const [stores, setStores] = useState<Store[]>([])
   const [records, setRecords] = useState<DouyinImportRecord[]>([])
   const [storeName, setStoreName] = useState("")
-  const [importDate, setImportDate] = useState(getYesterday())
+  const [importDate, setImportDate] = useState("")
   const [promoFile, setPromoFile] = useState<File | null>(null)
   const [orderFile, setOrderFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
@@ -62,7 +56,7 @@ export function DouyinImportPage() {
     try {
       const formData = new FormData()
       formData.append("store_name", storeName)
-      formData.append("import_date", importDate)
+      if (importDate) formData.append("import_date", importDate)
       if (promoFile) formData.append("promo_file", promoFile)
       if (orderFile) formData.append("order_file", orderFile)
 
@@ -130,7 +124,7 @@ export function DouyinImportPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>日期（单日文件必填，全数据文件可任选一天作为兜底）</Label>
+              <Label>日期（留空则自动识别文件内所有日期）</Label>
               <Input type="date" value={importDate} onChange={(e) => setImportDate(e.target.value)} />
             </div>
             <div className="flex items-end">
