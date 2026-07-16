@@ -271,15 +271,12 @@ def import_tmall_daily_data(
     }
 
 
-def _load_tmall_daily_product(store_name: str, date: str) -> pd.DataFrame:
-    """直接读取已预合并的商品指标；如指标文件缺失但订单存在，则从订单反推。"""
+def _load_tmall_daily_merged(store_name: str, date: str) -> pd.DataFrame:
+    """读取当日商品指标并按最新规则重新合并订单（保证净订单等口径与代码一致）。"""
     p, o = load_daily_data(store_name, date)
-    if not p.empty:
-        # 导入时已经把订单指标合并到商品指标中，无需重复 merge
-        return p
-    if not o.empty:
-        return build_product_metrics_from_orders(o, date)
-    return pd.DataFrame()
+    p = _merge_order_metrics(p, o)
+    p = _merge_merchant_code_from_orders(p, o)
+    return p
 
 
 @cached_with_ttl(300)
@@ -292,7 +289,7 @@ def load_tmall_analysis(
     end_s = _date_str(end_date)
     dates = [d for d in list_available_dates(store_name) if start_s <= d <= end_s]
 
-    product_dfs = [_load_tmall_daily_product(store_name, d) for d in dates]
+    product_dfs = [_load_tmall_daily_merged(store_name, d) for d in dates]
     product_dfs = [p for p in product_dfs if not p.empty]
 
     product_metrics = aggregate_product_metrics(product_dfs)
@@ -320,7 +317,7 @@ def load_tmall_trend(
 
     dfs: List[pd.DataFrame] = []
     for d in dates:
-        p = _load_tmall_daily_product(store_name, d)
+        p = _load_tmall_daily_merged(store_name, d)
         if not p.empty:
             p = p.copy()
             p["date"] = d
@@ -358,7 +355,7 @@ def get_tmall_dashboard_summary(
     for store in store_names:
         for d in list_available_dates(store):
             if start_s <= d <= end_s:
-                p = _load_tmall_daily_product(store, d)
+                p = _load_tmall_daily_merged(store, d)
                 if not p.empty:
                     p = p.copy()
                     p["date"] = d
