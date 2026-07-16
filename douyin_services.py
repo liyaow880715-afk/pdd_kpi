@@ -42,30 +42,142 @@ def _json_safe(obj: Any) -> Any:
     return obj
 
 
-def _compute_actual_revenue_from_orders(orders_df: pd.DataFrame) -> pd.DataFrame:
-    """按商品汇总订单中的实际收入（订单应付金额 + 平台实际承担优惠金额）。"""
-    if orders_df is None or orders_df.empty or "actual_revenue" not in orders_df.columns:
-        return pd.DataFrame(columns=["product_id", "actual_revenue"])
-    rev = orders_df.groupby("product_id")["actual_revenue"].sum().reset_index()
-    rev["actual_revenue"] = pd.to_numeric(rev["actual_revenue"], errors="coerce").fillna(0)
-    return rev
+def _build_order_summary(orders_df: pd.DataFrame) -> pd.DataFrame:
+    """按商品汇总订单数据，作为商品指标的业务数据基准。"""
+    if orders_df is None or orders_df.empty:
+        return pd.DataFrame(
+            columns=[
+                "product_id", "product_name", "order_gmv", "order_actual_revenue",
+                "order_count", "valid_order_count", "quantity", "valid_quantity",
+                "refund_orders", "refund_amount",
+            ]
+        )
+
+    df = orders_df.copy()
+    df["product_id"] = df["product_id"].astype(str)
+    # 过滤空商品ID
+    df = df[df["product_id"].str.strip() != ""].copy()
+    if df.empty:
+        return pd.DataFrame(
+            columns=[
+                "product_id", "product_name", "order_gmv", "order_actual_revenue",
+                "order_count", "valid_order_count", "quantity", "valid_quantity",
+                "refund_orders", "refund_amount",
+            ]
+        )
+    df["amount"] = pd.to_numeric(df.get("amount", 0), errors="coerce").fillna(0)
+    df["actual_revenue"] = pd.to_numeric(df.get("actual_revenue", 0), errors="coerce").fillna(0)
+    df["quantity"] = pd.to_numeric(df.get("quantity", 0), errors="coerce").fillna(0)
+
+    # 标记有效订单与退款订单
+    df["is_valid"] = True
+    df["is_refund"] = False
+    if "order_status" in df.columns:
+        invalid_mask = df["order_status"].astype(str).str.contains("关闭|取消|交易关闭", na=False)
+        df.loc[invalid_mask, "is_valid"] = False
+        df.loc[invalid_mask, "is_refund"] = True
+    if "aftersale_status" in df.columns:
+        refund_mask = df["aftersale_status"].astype(str).str.contains("退款成功", na=False)
+        df.loc[refund_mask, "is_valid"] = False
+        df.loc[refund_mask, "is_refund"] = True
+
+    grouped = (
+        df.groupby("product_id")
+        .agg(
+            product_name=("product_name", lambda x: x.dropna().astype(str).iloc[0] if len(x) else ""),
+            order_gmv=("amount", "sum"),
+            order_actual_revenue=("actual_revenue", "sum"),
+            order_count=("order_id", "nunique"),
+            quantity=("quantity", "sum"),
+            valid_order_gmv=("amount", lambda x: x[df.loc[x.index, "is_valid"]].sum()),
+            valid_order_count=("order_id", lambda x: x[df.loc[x.index, "is_valid"]].nunique()),
+            valid_quantity=("quantity", lambda x: x[df.loc[x.index, "is_valid"]].sum()),
+            refund_orders=("order_id", lambda x: x[df.loc[x.index, "is_refund"]].nunique()),
+            refund_amount=("amount", lambda x: x[df.loc[x.index, "is_refund"]].sum()),
+        )
+        .reset_index()
+    )
+    for col in ["valid_order_gmv", "valid_order_count", "valid_quantity", "refund_orders", "refund_amount"]:
+        grouped[col] = pd.to_numeric(grouped[col], errors="coerce").fillna(0)
+    return grouped
 
 
-def _merge_actual_revenue(product_df: pd.DataFrame, orders_df: pd.DataFrame) -> pd.DataFrame:
-    """将订单计算出的实际收入合并到商品指标中。"""
+def _merge_order_metrics(product_df: pd.DataFrame, orders_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    将订单数据合并到商品指标中。
+    当订单数据存在时，订单是业务指标（GMV/订单数/实际收入/数量）的基准；
+    推广指标（消耗/曝光/点击/退款订单数）仍以推广数据为准。
+    """
+    order_summary = _build_order_summary(orders_df)
+
+    # 只有订单数据时，直接用订单汇总作为商品指标
     if product_df is None or product_df.empty:
-        return product_df
+        if order_summary.empty:
+            return pd.DataFrame()
+        result = order_summary.rename(columns={
+            "order_gmv": "gmv",
+            "order_actual_revenue": "actual_revenue",
+            "valid_order_gmv": "valid_gmv",
+        })
+        result["spend"] = 0.0
+        result["exposure"] = 0.0
+        result["clicks"] = 0.0
+        # 退款指标已从订单汇总中计算
+        refund_orders_col = result.get("refund_orders", 0)
+        refund_amount_col = result.get("refund_amount", 0)
+        result["refund_orders"] = refund_orders_col.fillna(0) if hasattr(refund_orders_col, "fillna") else float(refund_orders_col)
+        result["refund_amount"] = refund_amount_col.fillna(0) if hasattr(refund_amount_col, "fillna") else float(refund_amount_col)
+        return result
+
     df = product_df.copy()
-    rev = _compute_actual_revenue_from_orders(orders_df)
-    if rev.empty:
-        if "actual_revenue" not in df.columns:
-            df["actual_revenue"] = 0.0
+    df["product_id"] = df["product_id"].astype(str)
+
+    if order_summary.empty:
+        for col in ["actual_revenue", "quantity", "valid_quantity"]:
+            if col not in df.columns:
+                df[col] = 0.0
         return df
-    if "actual_revenue" in df.columns:
-        df = df.drop(columns=["actual_revenue"])
-    df = df.merge(rev, on="product_id", how="left")
-    df["actual_revenue"] = df["actual_revenue"].fillna(0)
-    return df
+
+    order_summary = order_summary.copy()
+    order_summary["product_id"] = order_summary["product_id"].astype(str)
+
+    # 删除会被订单数据覆盖/补充的列
+    for col in ["gmv", "valid_gmv", "order_count", "valid_order_count", "actual_revenue", "quantity", "valid_quantity", "refund_orders", "refund_amount"]:
+        if col in df.columns:
+            df = df.drop(columns=[col])
+
+    merged = df.merge(order_summary, on="product_id", how="outer")
+
+    # 商品名称：优先用推广数据的，缺失时补订单里的
+    if "product_name_x" in merged.columns and "product_name_y" in merged.columns:
+        merged["product_name"] = merged["product_name_x"].replace("", pd.NA).fillna(merged["product_name_y"]).fillna("").astype(str)
+        merged = merged.drop(columns=["product_name_x", "product_name_y"])
+    elif "product_name_y" in merged.columns:
+        merged["product_name"] = merged["product_name_y"]
+        merged = merged.drop(columns=["product_name_y"])
+
+    # 业务指标以订单为准
+    merged["gmv"] = merged.get("order_gmv", 0).fillna(0)
+    merged["valid_gmv"] = merged.get("valid_order_gmv", 0).fillna(0)
+    merged["order_count"] = merged.get("order_count", 0).fillna(0)
+    merged["valid_order_count"] = merged.get("valid_order_count", 0).fillna(0)
+    merged["actual_revenue"] = merged.get("order_actual_revenue", 0).fillna(0)
+    merged["quantity"] = merged.get("quantity", 0).fillna(0)
+    merged["valid_quantity"] = merged.get("valid_quantity", 0).fillna(0)
+    # 退款指标：推广数据缺失时用订单数据兜底
+    refund_orders_col = merged.get("refund_orders", 0)
+    refund_amount_col = merged.get("refund_amount", 0)
+    merged["refund_orders"] = refund_orders_col.fillna(0) if hasattr(refund_orders_col, "fillna") else float(refund_orders_col)
+    merged["refund_amount"] = refund_amount_col.fillna(0) if hasattr(refund_amount_col, "fillna") else float(refund_amount_col)
+
+    # 推广指标缺失时填 0
+    for col in ["spend", "exposure", "clicks"]:
+        if col in merged.columns:
+            merged[col] = pd.to_numeric(merged[col], errors="coerce").fillna(0)
+        else:
+            merged[col] = 0.0
+
+    return merged
 
 
 def _merge_merchant_code_from_orders(product_df: pd.DataFrame, orders_df: pd.DataFrame) -> pd.DataFrame:
@@ -138,9 +250,9 @@ def import_douyin_daily_data(
                 if day_orders.empty:
                     continue
                 existing_product = load_daily_data(store_name, d)[0]
-                # 如果当天没有推广数据，从订单反推基础商品指标，让总览/趋势能显示这一天
-                if existing_product.empty:
-                    existing_product = build_product_metrics_from_orders(day_orders, d)
+                # 把订单数据合并到商品指标：订单是 GMV/订单数/实际收入/数量的基准
+                existing_product = _merge_order_metrics(existing_product, day_orders)
+                existing_product["date"] = d
                 meta = {
                     "promo_file": promo_filename or "",
                     "order_file": order_filename or "",
@@ -175,7 +287,7 @@ def load_douyin_analysis(
     product_dfs = []
     for d in dates:
         p, o = load_daily_data(store_name, d)
-        p = _merge_actual_revenue(p, o)
+        p = _merge_order_metrics(p, o)
         p = _merge_merchant_code_from_orders(p, o)
         if not p.empty:
             product_dfs.append(p)
@@ -204,7 +316,7 @@ def load_douyin_trend(
     rows = []
     for d in dates:
         p, o = load_daily_data(store_name, d)
-        p = _merge_actual_revenue(p, o)
+        p = _merge_order_metrics(p, o)
         p = _merge_merchant_code_from_orders(p, o)
         p_cost = apply_costs_to_metrics(p, store_name=store_name)
         kpis = compute_overall_kpis(p)
@@ -233,7 +345,7 @@ def get_douyin_dashboard_summary(
         for d in list_available_dates(store):
             if start_s <= d <= end_s:
                 p, o = load_daily_data(store, d)
-                p = _merge_actual_revenue(p, o)
+                p = _merge_order_metrics(p, o)
                 p = _merge_merchant_code_from_orders(p, o)
                 if not p.empty:
                     all_product_dfs.append(p)

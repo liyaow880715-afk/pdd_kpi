@@ -497,7 +497,13 @@ def apply_costs_to_metrics(metrics: pd.DataFrame, store_name: Optional[str] = No
         df.loc[blank_mask, "product_cost_unit"] = [x[0] for x in mapped]
         df.loc[blank_mask, "logistics_cost_unit"] = [x[1] for x in mapped]
 
-    quantity = pd.to_numeric(df.get("valid_order_count", 0), errors="coerce").fillna(0)
+    # 成本数量优先用「有效商品件数」，其次用「有效订单数」兜底
+    if "valid_quantity" in df.columns:
+        quantity = pd.to_numeric(df["valid_quantity"], errors="coerce").fillna(0)
+    elif "quantity" in df.columns:
+        quantity = pd.to_numeric(df["quantity"], errors="coerce").fillna(0)
+    else:
+        quantity = pd.to_numeric(df.get("valid_order_count", 0), errors="coerce").fillna(0)
     income = pd.to_numeric(df.get("valid_gmv", 0), errors="coerce").fillna(0)
     spend = pd.to_numeric(df.get("spend", 0), errors="coerce").fillna(0)
 
