@@ -93,6 +93,8 @@ def read_promotion_file(file_bytes: bytes, filename: str = "") -> pd.DataFrame:
         return df
 
     df = df.copy()
+    # 清理列名首尾空格，避免 CSV 列名带空格导致映射失败
+    df.columns = [str(c).strip() for c in df.columns]
 
     # 列名统一
     df["date"] = df.get("日期", "").apply(_parse_date)
@@ -157,6 +159,7 @@ def read_order_file(file_bytes: bytes, filename: str = "") -> pd.DataFrame:
         return df
 
     df = df.copy()
+    df.columns = [str(c).strip() for c in df.columns]
 
     df["order_id"] = df.get("订单编号", "").astype(str)
     df["product_name"] = df.get("商品标题", "").astype(str)

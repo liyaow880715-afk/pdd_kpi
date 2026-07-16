@@ -118,13 +118,13 @@ def _merge_order_metrics(product_df: pd.DataFrame, orders_df: pd.DataFrame) -> p
     if product_df is None or product_df.empty:
         if order_summary.empty:
             return pd.DataFrame()
+        # product_key 本身就是商品标题，直接作为 product_id，避免重命名后 product_name 重复
         result = order_summary.rename(columns={
-            "product_key": "product_name",
+            "product_key": "product_id",
             "order_gmv": "gmv",
             "order_actual_revenue": "actual_revenue",
             "valid_order_gmv": "valid_gmv",
         })
-        result["product_id"] = result["product_name"]
         result["spend"] = 0.0
         result["exposure"] = 0.0
         result["clicks"] = 0.0
