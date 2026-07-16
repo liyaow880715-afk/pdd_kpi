@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 import services
 from auth import authorize_store, get_current_user, require_master, require_page
+from services import bump_data_version
 
 router = APIRouter()
 
@@ -50,7 +51,9 @@ def save_costs(
     user: dict = Depends(get_current_user),
 ):
     authorize_store(user, req.store_name)
-    return services.save_costs(req.store_name, [c.model_dump() for c in req.costs])
+    result = services.save_costs(req.store_name, [c.model_dump() for c in req.costs])
+    bump_data_version()
+    return result
 
 
 @router.post("/refresh", response_model=Dict[str, Any])
@@ -59,7 +62,9 @@ def refresh_cost_codes(
     user: dict = Depends(get_current_user),
 ):
     authorize_store(user, store_name)
-    return services.refresh_cost_codes(store_name)
+    result = services.refresh_cost_codes(store_name)
+    bump_data_version()
+    return result
 
 
 @router.get("/export", response_class=PlainTextResponse)
@@ -79,7 +84,9 @@ def import_costs(
 ):
     authorize_store(user, store_name)
     file_bytes = file.file.read()
-    return services.import_cost_csv(store_name, file_bytes)
+    result = services.import_cost_csv(store_name, file_bytes)
+    bump_data_version()
+    return result
 
 
 # ---------- 全局成本（仅主账号可管理） ----------
@@ -94,12 +101,16 @@ def save_global_costs(
     req: SaveGlobalCostsRequest,
     _: dict = Depends(require_page("costs")),
 ):
-    return services.save_global_costs([c.model_dump() for c in req.costs])
+    result = services.save_global_costs([c.model_dump() for c in req.costs])
+    bump_data_version()
+    return result
 
 
 @router.post("/global/refresh", response_model=Dict[str, Any])
 def refresh_global_cost_codes(_: dict = Depends(require_page("costs"))):
-    return services.refresh_global_cost_codes_service()
+    result = services.refresh_global_cost_codes_service()
+    bump_data_version()
+    return result
 
 
 @router.get("/global/export", response_class=PlainTextResponse)
@@ -116,7 +127,9 @@ def import_global_costs(
     _: dict = Depends(require_page("costs")),
 ):
     file_bytes = file.file.read()
-    return services.import_global_cost_csv(file_bytes)
+    result = services.import_global_cost_csv(file_bytes)
+    bump_data_version()
+    return result
 
 
 @router.get("/global/unmapped", response_model=List[Dict[str, Any]])
@@ -129,6 +142,8 @@ def map_product_to_merchant_code(
     req: ProductMappingRequest,
     _: dict = Depends(require_page("costs")),
 ):
-    return services.save_global_product_mapping_service(
+    result = services.save_global_product_mapping_service(
         req.product_id, req.merchant_code, style_id=req.style_id, product_name=req.product_name
     )
+    bump_data_version()
+    return result

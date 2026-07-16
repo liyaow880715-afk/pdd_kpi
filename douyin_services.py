@@ -21,7 +21,7 @@ from douyin_storage import (
     load_daily_data,
     save_daily_data,
 )
-from services import bump_data_version
+from services import bump_data_version, cached_with_ttl
 
 
 def _date_str(d: datetime.date) -> str:
@@ -275,6 +275,17 @@ def import_douyin_daily_data(
     }
 
 
+def _load_douyin_daily_product(store_name: str, date: str) -> pd.DataFrame:
+    """直接读取已预合并的商品指标；如指标文件缺失但订单存在，则从订单反推。"""
+    p, o = load_daily_data(store_name, date)
+    if not p.empty:
+        return p
+    if not o.empty:
+        return build_product_metrics_from_orders(o, date)
+    return pd.DataFrame()
+
+
+@cached_with_ttl(300)
 def load_douyin_analysis(
     store_name: str,
     start_date: datetime.date,
@@ -284,13 +295,8 @@ def load_douyin_analysis(
     end_s = _date_str(end_date)
     dates = [d for d in list_available_dates(store_name) if start_s <= d <= end_s]
 
-    product_dfs = []
-    for d in dates:
-        p, o = load_daily_data(store_name, d)
-        p = _merge_order_metrics(p, o)
-        p = _merge_merchant_code_from_orders(p, o)
-        if not p.empty:
-            product_dfs.append(p)
+    product_dfs = [_load_douyin_daily_product(store_name, d) for d in dates]
+    product_dfs = [p for p in product_dfs if not p.empty]
 
     product_metrics = aggregate_product_metrics(product_dfs)
     product_metrics = apply_costs_to_metrics(product_metrics, store_name=store_name)
@@ -304,33 +310,45 @@ def load_douyin_analysis(
     })
 
 
+@cached_with_ttl(300)
 def load_douyin_trend(
     store_name: str,
     start_date: datetime.date,
     end_date: datetime.date,
 ) -> List[Dict[str, Any]]:
+    """按店铺汇总后再按日期分组，避免逐日重复合并订单与计算成本。"""
     start_s = _date_str(start_date)
     end_s = _date_str(end_date)
     dates = [d for d in list_available_dates(store_name) if start_s <= d <= end_s]
 
-    rows = []
+    dfs: List[pd.DataFrame] = []
     for d in dates:
-        p, o = load_daily_data(store_name, d)
-        p = _merge_order_metrics(p, o)
-        p = _merge_merchant_code_from_orders(p, o)
-        p_cost = apply_costs_to_metrics(p, store_name=store_name)
-        kpis = compute_overall_kpis(p)
-        cost = compute_cost_kpis(p_cost)
-        row = {"date": d, **kpis, **cost}
-        rows.append(_json_safe(row))
+        p = _load_douyin_daily_product(store_name, d)
+        if not p.empty:
+            p = p.copy()
+            p["date"] = d
+            dfs.append(p)
+    if not dfs:
+        return []
+
+    combined = pd.concat(dfs, ignore_index=True)
+    combined_cost = apply_costs_to_metrics(combined, store_name=store_name)
+
+    rows = []
+    for d, g in combined_cost.groupby("date", sort=True):
+        kpis = compute_overall_kpis(g)
+        cost = compute_cost_kpis(g)
+        rows.append(_json_safe({"date": d, **kpis, **cost}))
     return rows
 
 
+@cached_with_ttl(300)
 def get_douyin_dashboard_summary(
     start_date: datetime.date,
     end_date: datetime.date,
     store_names: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
+    """汇总指定店铺在日期范围内的经营数据；按店铺汇总后一次性应用成本并分组出趋势。"""
     from douyin_storage import list_douyin_stores
 
     if store_names is None:
@@ -340,28 +358,32 @@ def get_douyin_dashboard_summary(
     end_s = _date_str(end_date)
 
     all_product_dfs: List[pd.DataFrame] = []
-    daily_dfs: Dict[str, List[pd.DataFrame]] = {}
     for store in store_names:
         for d in list_available_dates(store):
             if start_s <= d <= end_s:
-                p, o = load_daily_data(store, d)
-                p = _merge_order_metrics(p, o)
-                p = _merge_merchant_code_from_orders(p, o)
+                p = _load_douyin_daily_product(store, d)
                 if not p.empty:
+                    p = p.copy()
+                    p["date"] = d
                     all_product_dfs.append(p)
-                    daily_dfs.setdefault(d, []).append(p)
 
-    combined = pd.concat(all_product_dfs, ignore_index=True) if all_product_dfs else pd.DataFrame()
+    if not all_product_dfs:
+        return _json_safe({
+            "store_count": len(store_names),
+            "kpis": {},
+            "cost_kpis": {},
+            "trend": [],
+        })
+
+    combined = pd.concat(all_product_dfs, ignore_index=True)
     combined_cost = apply_costs_to_metrics(combined, store_name=None)
     overall = compute_overall_kpis(combined)
     cost_kpis = compute_cost_kpis(combined_cost)
 
     trend_summary = []
-    for d in sorted(daily_dfs.keys()):
-        day_df = pd.concat(daily_dfs[d], ignore_index=True)
-        day_cost = apply_costs_to_metrics(day_df, store_name=None)
-        kpis = compute_overall_kpis(day_df)
-        cost = compute_cost_kpis(day_cost)
+    for d, g in combined_cost.groupby("date", sort=True):
+        kpis = compute_overall_kpis(g)
+        cost = compute_cost_kpis(g)
         trend_summary.append(_json_safe({"date": d, **kpis, **cost}))
 
     return _json_safe({

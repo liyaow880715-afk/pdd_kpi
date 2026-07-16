@@ -98,6 +98,23 @@ def compute_product_metrics(merged: pd.DataFrame) -> pd.DataFrame:
         if c not in df.columns:
             df[c] = 0
 
+    # 如果指标列已经完整（Parquet 中已预计算），直接返回，避免逐行 apply
+    _precomputed_cols = [
+        "promo_roi", "promo_cost_per_order", "ctr", "click_to_order_rate",
+        "exposure_to_order_rate", "cpc", "cpm", "promo_gmv_ratio",
+        "valid_order_gmv_ratio", "promo_order_ratio", "refund_rate",
+        "cancel_rate", "problem_rate", "refund_unshipped_rate",
+        "refund_shipped_rate", "refund_received_rate", "real_roi_merchant_income",
+        "valid_order_gmv_roi", "promo_cost_ratio", "organic_orders",
+        "organic_gmv", "organic_ratio_gmv", "organic_ratio_orders",
+        "promo_merchant_income", "organic_merchant_income", "organic_ratio_income",
+        "promo_valid_order_count", "organic_valid_order_count",
+        "organic_ratio_valid_orders", "avg_order_gmv", "avg_valid_order_gmv",
+        "avg_order_income", "avg_valid_order_income",
+    ]
+    if all(c in df.columns for c in _precomputed_cols):
+        return df
+
     # 推广侧指标
     df["promo_roi"] = df.apply(
         lambda r: safe_div(r["promo_gmv"], r["promo_spend"]), axis=1

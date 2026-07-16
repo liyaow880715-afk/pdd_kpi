@@ -481,48 +481,43 @@ def load_trend_data(
     start_date: datetime.date,
     end_date: datetime.date,
 ) -> List[Dict[str, Any]]:
+    """按店铺汇总后再按日期分组，避免逐日重复计算指标"""
     start_s = _date_str(start_date)
     end_s = _date_str(end_date)
-    trend_keys = [
-        "promo_spend", "promo_gmv", "order_gmv", "valid_order_gmv",
-        "merchant_income", "valid_merchant_income",
-        "order_count", "valid_order_count", "promo_orders",
-        "exposure", "clicks",
-        "promo_roi", "real_roi", "valid_order_gmv_roi",
-        "ctr", "click_to_order_rate", "exposure_to_order_rate",
-        "cpc", "cpm",
-        "promo_gmv_ratio", "valid_order_gmv_ratio", "promo_order_ratio", "promo_cost_ratio",
-        "refund_rate", "cancel_rate", "problem_rate",
-        "refund_unshipped_rate", "refund_shipped_rate", "refund_received_rate",
-        "refund_count", "cancel_count",
-        "refund_unshipped_count", "refund_shipped_count", "refund_received_count",
-        "organic_orders", "organic_gmv", "organic_ratio_orders", "organic_ratio_gmv",
-        "organic_merchant_income", "organic_valid_order_count", "organic_ratio_income", "organic_ratio_valid_orders",
-        "total_product_cost", "total_logistics_cost", "total_cost", "link_gross_profit", "profit_loss", "gross_margin_rate", "profit_loss_rate",
-    ]
-    rows = []
+
+    rows: List[Dict[str, Any]] = []
     for store in store_names:
         dates = [d for d in list_available_dates(store) if start_s <= d <= end_s]
+        if not dates:
+            continue
+
+        dfs: List[pd.DataFrame] = []
         for d in dates:
             try:
                 p, _ = load_daily_data(d, store)
-                p = compute_product_metrics(p)
-                orders = load_daily_orders(d, store)
-                p = merge_refund_stage_counts(p, [orders])
-                # 趋势统一走成本回退逻辑，确保和分析页汇总结果一致
-                p["merchant_code"] = ""
-                p = apply_costs_to_metrics(p, store)
-                day_kpis = compute_overall_kpis(p)
-                row = {"store_name": store, "date": d}
-                for k in trend_keys:
-                    val = day_kpis.get(k, 0)
-                    # 把 numpy 标量转成 Python 原生类型，避免 FastAPI 序列化报错
-                    if hasattr(val, "item"):
-                        val = val.item()
-                    row[k] = val
-                rows.append(row)
+                if not p.empty:
+                    p = p.copy()
+                    p["date"] = d
+                    dfs.append(p)
             except Exception:
                 continue
+        if not dfs:
+            continue
+
+        combined = pd.concat(dfs, ignore_index=True)
+        combined = compute_product_metrics(combined)
+        combined = merge_refund_stage_counts(combined, [])
+        # 趋势统一走成本回退逻辑，确保和分析页汇总结果一致
+        combined["merchant_code"] = ""
+        combined = apply_costs_to_metrics(combined, store)
+
+        for d, g in combined.groupby("date", sort=True):
+            day_kpis = compute_overall_kpis(g)
+            cost = compute_cost_kpis(g)
+            row = {"store_name": store, "date": d}
+            row.update(day_kpis)
+            row.update(cost)
+            rows.append(_json_safe(row))
     return rows
 
 

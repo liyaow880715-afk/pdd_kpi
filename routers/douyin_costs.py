@@ -9,6 +9,7 @@ import douyin_cost_manager
 import douyin_services
 from auth import accessible_stores, get_current_user, require_page
 from store_manager import list_store_names
+from services import bump_data_version
 
 router = APIRouter()
 
@@ -42,6 +43,7 @@ def save_costs(
     _: dict = Depends(require_page("douyin_costs")),
 ):
     douyin_cost_manager.save_global_costs([c.model_dump() for c in req.costs])
+    bump_data_version()
     return {"saved": True}
 
 
@@ -60,12 +62,15 @@ def import_costs(
 ):
     file_bytes = file.file.read()
     count = douyin_cost_manager.import_global_costs_from_csv(file_bytes)
+    bump_data_version()
     return {"updated": count}
 
 
 @router.post("/refresh", response_model=Dict[str, Any])
 def refresh_cost_codes(_: dict = Depends(require_page("douyin_costs"))):
-    return douyin_cost_manager.refresh_global_cost_codes()
+    result = douyin_cost_manager.refresh_global_cost_codes()
+    bump_data_version()
+    return result
 
 
 @router.get("/unmapped", response_model=List[Dict[str, Any]])
@@ -101,4 +106,5 @@ def map_product_to_merchant_code(
         product_name=req.product_name or "",
     )
     douyin_cost_manager.save_cost_config(cfg)
+    bump_data_version()
     return {"product_id": req.product_id, "style_id": req.style_id, "merchant_code": req.merchant_code}
