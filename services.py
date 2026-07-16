@@ -588,22 +588,16 @@ def get_dashboard_summary(
         "total_product_cost", "total_logistics_cost", "total_cost", "link_gross_profit", "profit_loss",
     ]
 
-    # 汇总所有店铺整体 KPI
-    total = {k: 0.0 for k in base_keys}
-    for store in store_names:
-        try:
-            analysis = load_analysis_data(store, start_date, end_date)
-            kpis = analysis.get("kpis") or {}
-            for k in base_keys:
-                total[k] += float(kpis.get(k) or 0)
-        except Exception:
-            continue
+    # 按日期汇总趋势（整体 KPI 从趋势汇总得出，避免重复读取 analysis 的订单文件）
+    trend_rows = load_trend_data(store_names, start_date, end_date)
 
+    total = {k: 0.0 for k in base_keys}
+    for row in trend_rows:
+        for k in base_keys:
+            total[k] += float(row.get(k, 0) or 0)
     summary_kpis = _recompute_kpis(total)
     summary_kpis = {k: (None if pd.isna(v) else v) for k, v in summary_kpis.items()}
 
-    # 按日期汇总趋势
-    trend_rows = load_trend_data(store_names, start_date, end_date)
     trend_by_date: Dict[str, Dict[str, float]] = {}
     for row in trend_rows:
         d = row.get("date")
