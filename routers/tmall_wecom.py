@@ -10,14 +10,14 @@ router = APIRouter()
 
 
 @router.get("/config", response_model=Dict[str, Any])
-def get_config(user: dict = Depends(require_page("tmall"))):
+def get_config(user: dict = Depends(require_page("tmall_wecom"))):
     return tmall_services.get_tmall_wecom_config()
 
 
 @router.post("/config", response_model=Dict[str, Any])
 def update_config(
     config: Dict[str, Any],
-    user: dict = Depends(require_page("tmall")),
+    user: dict = Depends(require_page("tmall_wecom")),
 ):
     return tmall_services.update_tmall_wecom_config(config)
 
@@ -26,6 +26,6 @@ def update_config(
 def send_report(
     report_date: datetime.date,
     config: Dict[str, Any],
-    user: dict = Depends(require_page("tmall")),
+    user: dict = Depends(require_page("tmall_wecom")),
 ):
     return tmall_services.send_tmall_wecom_report(report_date, config)
