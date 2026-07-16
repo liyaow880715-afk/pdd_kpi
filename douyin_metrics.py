@@ -78,12 +78,12 @@ def build_product_metrics_from_orders(orders: pd.DataFrame, date: str) -> pd.Dat
             product_name=("product_name", lambda x: x.dropna().astype(str).iloc[0] if len(x) else ""),
             gmv=("amount", "sum"),
             actual_revenue=("actual_revenue", "sum"),
-            order_count=("order_id", "nunique"),
+            order_count=("order_id", "size"),
             quantity=("quantity", "sum"),
             valid_gmv=("amount", lambda x: x[df.loc[x.index, "is_valid"]].sum()),
-            valid_order_count=("order_id", lambda x: x[df.loc[x.index, "is_valid"]].nunique()),
+            valid_order_count=("order_id", lambda x: x[df.loc[x.index, "is_valid"]].size),
             valid_quantity=("quantity", lambda x: x[df.loc[x.index, "is_valid"]].sum()),
-            refund_orders=("order_id", lambda x: x[df.loc[x.index, "is_refund"]].nunique()),
+            refund_orders=("order_id", lambda x: x[df.loc[x.index, "is_refund"]].size),
             refund_amount=("amount", lambda x: x[df.loc[x.index, "is_refund"]].sum()),
         )
         .reset_index()
