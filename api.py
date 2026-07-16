@@ -11,7 +11,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from routers import stores, imports, orders, metrics, costs, ai, wecom, exports, auth, dashboard, users, backups, douyin, douyin_costs, douyin_ai, douyin_wecom
+from routers import stores, imports, orders, metrics, costs, ai, wecom, exports, auth, dashboard, users, backups, douyin, douyin_costs, douyin_ai, douyin_wecom, tmall, tmall_costs
 from auth import auth_middleware, init_auth, is_public_path
 
 
@@ -73,6 +73,8 @@ app.include_router(douyin.router, prefix="/api/douyin", tags=["douyin"])
 app.include_router(douyin_costs.router, prefix="/api/douyin/costs", tags=["douyin-costs"])
 app.include_router(douyin_ai.router, prefix="/api/douyin/ai", tags=["douyin-ai"])
 app.include_router(douyin_wecom.router, prefix="/api/douyin/wecom", tags=["douyin-wecom"])
+app.include_router(tmall.router, prefix="/api/tmall", tags=["tmall"])
+app.include_router(tmall_costs.router, prefix="/api/tmall/costs", tags=["tmall-costs"])
 
 
 @app.get("/api/health")

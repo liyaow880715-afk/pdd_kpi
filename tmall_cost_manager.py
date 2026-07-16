@@ -1,11 +1,11 @@
 """
-抖音成本管理（与拼多多成本管理功能对齐）
+天猫成本管理（与抖音成本管理对齐）
 - 按商家编码维护商品成本/物流成本（全店铺通用）
 - 支持 product_id / style_id -> 商家编码 映射
 - 支持从订单中刷新商家编码、识别未映射商品
 - 支持导入/导出 CSV、导出待维护编码
-- 存储文件：data/douyin_costs.json
-- 应用成本时收入基于 valid_gmv，数量基于 valid_order_count
+- 存储文件：data/tmall_costs.json
+- 应用成本时收入基于 valid_gmv，数量基于 valid_quantity
 """
 
 import csv
@@ -17,9 +17,9 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
-from douyin_storage import list_available_dates, list_douyin_stores, load_daily_orders
+from tmall_storage import list_available_dates, list_tmall_stores, load_daily_orders
 
-COSTS_FILE = Path("data/douyin_costs.json")
+COSTS_FILE = Path("data/tmall_costs.json")
 
 GLOBAL_COSTS_KEY = "global_merchant_costs"
 GLOBAL_PRODUCT_MAP_KEY = "global_product_merchant_map"
@@ -249,7 +249,7 @@ def extract_merchant_codes_from_orders(store_name: str) -> pd.DataFrame:
 
 def get_all_merchant_codes() -> pd.DataFrame:
     codes = set()
-    for store in list_douyin_stores():
+    for store in list_tmall_stores():
         df = extract_merchant_codes_from_orders(store)
         if not df.empty:
             codes.update(df["merchant_code"].astype(str).tolist())
@@ -286,7 +286,7 @@ def get_products_without_merchant_code(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
 ) -> pd.DataFrame:
-    stores = store_names if store_names else list_douyin_stores()
+    stores = store_names if store_names else list_tmall_stores()
     config = load_cost_config()
     rows = []
     for store in stores:

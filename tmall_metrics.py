@@ -1,5 +1,5 @@
 """
-抖音指标计算
+天猫指标计算
 """
 
 from typing import Any, Dict, List
@@ -25,6 +25,10 @@ def compute_overall_kpis(metrics: pd.DataFrame) -> Dict[str, Any]:
         "clicks": float(metrics["clicks"].sum()),
         "refund_orders": float(metrics["refund_orders"].sum()),
         "refund_amount": float(metrics["refund_amount"].sum()),
+        "direct_gmv": float(metrics.get("direct_gmv", pd.Series([0.0])).sum()),
+        "indirect_gmv": float(metrics.get("indirect_gmv", pd.Series([0.0])).sum()),
+        "cart_count": float(metrics.get("cart_count", pd.Series([0.0])).sum()),
+        "collect_count": float(metrics.get("collect_count", pd.Series([0.0])).sum()),
     }
     if "actual_revenue" in metrics.columns:
         totals["actual_revenue"] = float(metrics["actual_revenue"].sum())
@@ -51,29 +55,21 @@ def build_product_metrics_from_orders(orders: pd.DataFrame, date: str) -> pd.Dat
         return pd.DataFrame()
 
     df = orders.copy()
-    df["product_id"] = df.get("product_id", "").astype(str)
-    df["product_name"] = df.get("product_name", "").astype(str)
-
-    # 金额/数量转数值
+    df["product_key"] = df["product_name"].astype(str).str.strip()
     df["amount"] = pd.to_numeric(df.get("amount", 0), errors="coerce").fillna(0)
-    df["platform_subsidy"] = pd.to_numeric(df.get("platform_subsidy", 0), errors="coerce").fillna(0)
     df["actual_revenue"] = pd.to_numeric(df.get("actual_revenue", 0), errors="coerce").fillna(0)
     df["quantity"] = pd.to_numeric(df.get("quantity", 0), errors="coerce").fillna(0)
+    df["refund_amount"] = pd.to_numeric(df.get("refund_amount", 0), errors="coerce").fillna(0)
 
-    # 标记有效订单与退款订单
+    # 标记有效/退款
     df["is_valid"] = True
-    df["is_refund"] = False
-    if "order_status" in df.columns:
-        invalid_mask = df["order_status"].astype(str).str.contains("关闭|取消|交易关闭", na=False)
-        df.loc[invalid_mask, "is_valid"] = False
-        df.loc[invalid_mask, "is_refund"] = True
-    if "aftersale_status" in df.columns:
-        refund_mask = df["aftersale_status"].astype(str).str.contains("退款成功", na=False)
-        df.loc[refund_mask, "is_valid"] = False
-        df.loc[refund_mask, "is_refund"] = True
+    df["is_refund"] = df["refund_amount"] > 0
+    invalid_status = df["order_status"].astype(str).str.contains("关闭|取消|交易关闭", na=False)
+    df.loc[invalid_status, "is_valid"] = False
+    df.loc[df["is_refund"], "is_valid"] = False
 
     grouped = (
-        df.groupby("product_id")
+        df.groupby("product_key")
         .agg(
             product_name=("product_name", lambda x: x.dropna().astype(str).iloc[0] if len(x) else ""),
             gmv=("amount", "sum"),
@@ -84,7 +80,7 @@ def build_product_metrics_from_orders(orders: pd.DataFrame, date: str) -> pd.Dat
             valid_order_count=("order_id", lambda x: x[df.loc[x.index, "is_valid"]].size),
             valid_quantity=("quantity", lambda x: x[df.loc[x.index, "is_valid"]].sum()),
             refund_orders=("order_id", lambda x: x[df.loc[x.index, "is_refund"]].size),
-            refund_amount=("amount", lambda x: x[df.loc[x.index, "is_refund"]].sum()),
+            refund_amount=("refund_amount", "sum"),
         )
         .reset_index()
     )
@@ -93,9 +89,10 @@ def build_product_metrics_from_orders(orders: pd.DataFrame, date: str) -> pd.Dat
     grouped["spend"] = 0.0
     grouped["exposure"] = 0.0
     grouped["clicks"] = 0.0
+    grouped["product_id"] = grouped["product_key"]
 
     return grouped[[
-        "product_id", "product_name", "date",
+        "product_id", "product_name", "product_key", "date",
         "spend", "gmv", "valid_gmv", "order_count", "valid_order_count",
         "exposure", "clicks", "refund_orders", "refund_amount", "actual_revenue",
         "quantity", "valid_quantity",

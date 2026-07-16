@@ -1,5 +1,5 @@
 """
-抖音业务服务层
+天猫业务服务层
 """
 
 import datetime
@@ -9,15 +9,14 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-import wecom as wecom_sender
 
-from douyin_loader import read_order_file, read_promotion_file
-from douyin_metrics import aggregate_product_metrics, build_product_metrics_from_orders, compute_overall_kpis
-from douyin_cost_manager import apply_costs_to_metrics, compute_cost_kpis
-from douyin_storage import (
+from tmall_loader import read_order_file, read_promotion_file
+from tmall_metrics import aggregate_product_metrics, build_product_metrics_from_orders, compute_overall_kpis
+from tmall_cost_manager import apply_costs_to_metrics, compute_cost_kpis
+from tmall_storage import (
     delete_daily_data,
     list_available_dates,
-    list_douyin_records,
+    list_tmall_records,
     load_daily_data,
     save_daily_data,
 )
@@ -43,46 +42,41 @@ def _json_safe(obj: Any) -> Any:
 
 
 def _build_order_summary(orders_df: pd.DataFrame) -> pd.DataFrame:
-    """按商品汇总订单数据，作为商品指标的业务数据基准。"""
+    """按商品标题汇总订单数据。"""
     if orders_df is None or orders_df.empty:
         return pd.DataFrame(
             columns=[
-                "product_id", "product_name", "order_gmv", "order_actual_revenue",
+                "product_key", "product_name", "order_gmv", "order_actual_revenue",
                 "order_count", "valid_order_count", "quantity", "valid_quantity",
                 "refund_orders", "refund_amount",
             ]
         )
 
     df = orders_df.copy()
-    df["product_id"] = df["product_id"].astype(str)
-    # 过滤空商品ID
-    df = df[df["product_id"].str.strip() != ""].copy()
+    df["product_key"] = df["product_name"].astype(str).str.strip()
+    df = df[df["product_key"] != ""].copy()
     if df.empty:
         return pd.DataFrame(
             columns=[
-                "product_id", "product_name", "order_gmv", "order_actual_revenue",
+                "product_key", "product_name", "order_gmv", "order_actual_revenue",
                 "order_count", "valid_order_count", "quantity", "valid_quantity",
                 "refund_orders", "refund_amount",
             ]
         )
+
     df["amount"] = pd.to_numeric(df.get("amount", 0), errors="coerce").fillna(0)
     df["actual_revenue"] = pd.to_numeric(df.get("actual_revenue", 0), errors="coerce").fillna(0)
     df["quantity"] = pd.to_numeric(df.get("quantity", 0), errors="coerce").fillna(0)
+    df["refund_amount"] = pd.to_numeric(df.get("refund_amount", 0), errors="coerce").fillna(0)
 
-    # 标记有效订单与退款订单
     df["is_valid"] = True
-    df["is_refund"] = False
-    if "order_status" in df.columns:
-        invalid_mask = df["order_status"].astype(str).str.contains("关闭|取消|交易关闭", na=False)
-        df.loc[invalid_mask, "is_valid"] = False
-        df.loc[invalid_mask, "is_refund"] = True
-    if "aftersale_status" in df.columns:
-        refund_mask = df["aftersale_status"].astype(str).str.contains("退款成功", na=False)
-        df.loc[refund_mask, "is_valid"] = False
-        df.loc[refund_mask, "is_refund"] = True
+    df["is_refund"] = df["refund_amount"] > 0
+    invalid_status = df["order_status"].astype(str).str.contains("关闭|取消|交易关闭", na=False)
+    df.loc[invalid_status, "is_valid"] = False
+    df.loc[df["is_refund"], "is_valid"] = False
 
     grouped = (
-        df.groupby("product_id")
+        df.groupby("product_key")
         .agg(
             product_name=("product_name", lambda x: x.dropna().astype(str).iloc[0] if len(x) else ""),
             order_gmv=("amount", "sum"),
@@ -93,7 +87,7 @@ def _build_order_summary(orders_df: pd.DataFrame) -> pd.DataFrame:
             valid_order_count=("order_id", lambda x: x[df.loc[x.index, "is_valid"]].size),
             valid_quantity=("quantity", lambda x: x[df.loc[x.index, "is_valid"]].sum()),
             refund_orders=("order_id", lambda x: x[df.loc[x.index, "is_refund"]].size),
-            refund_amount=("amount", lambda x: x[df.loc[x.index, "is_refund"]].sum()),
+            refund_amount=("refund_amount", "sum"),
         )
         .reset_index()
     )
@@ -105,32 +99,27 @@ def _build_order_summary(orders_df: pd.DataFrame) -> pd.DataFrame:
 def _merge_order_metrics(product_df: pd.DataFrame, orders_df: pd.DataFrame) -> pd.DataFrame:
     """
     将订单数据合并到商品指标中。
-    当订单数据存在时，订单是业务指标（GMV/订单数/实际收入/数量）的基准；
-    推广指标（消耗/曝光/点击/退款订单数）仍以推广数据为准。
+    天猫推广数据按「计划」维度，订单数据按「商品标题」维度，二者不完全对齐。
+    这里按商品标题做外层合并，业务指标以订单为准，推广指标以推广为准。
     """
     order_summary = _build_order_summary(orders_df)
 
-    # 只有订单数据时，直接用订单汇总作为商品指标
     if product_df is None or product_df.empty:
         if order_summary.empty:
             return pd.DataFrame()
         result = order_summary.rename(columns={
+            "product_key": "product_name",
             "order_gmv": "gmv",
             "order_actual_revenue": "actual_revenue",
             "valid_order_gmv": "valid_gmv",
         })
+        result["product_id"] = result["product_name"]
         result["spend"] = 0.0
         result["exposure"] = 0.0
         result["clicks"] = 0.0
-        # 退款指标已从订单汇总中计算
-        refund_orders_col = result.get("refund_orders", 0)
-        refund_amount_col = result.get("refund_amount", 0)
-        result["refund_orders"] = refund_orders_col.fillna(0) if hasattr(refund_orders_col, "fillna") else float(refund_orders_col)
-        result["refund_amount"] = refund_amount_col.fillna(0) if hasattr(refund_amount_col, "fillna") else float(refund_amount_col)
         return result
 
     df = product_df.copy()
-    df["product_id"] = df["product_id"].astype(str)
 
     if order_summary.empty:
         for col in ["actual_revenue", "quantity", "valid_quantity"]:
@@ -139,24 +128,23 @@ def _merge_order_metrics(product_df: pd.DataFrame, orders_df: pd.DataFrame) -> p
         return df
 
     order_summary = order_summary.copy()
-    order_summary["product_id"] = order_summary["product_id"].astype(str)
 
-    # 删除会被订单数据覆盖/补充的列
     for col in ["gmv", "valid_gmv", "order_count", "valid_order_count", "actual_revenue", "quantity", "valid_quantity", "refund_orders", "refund_amount"]:
         if col in df.columns:
             df = df.drop(columns=[col])
 
-    merged = df.merge(order_summary, on="product_id", how="outer")
+    merged = df.merge(order_summary, left_on="product_name", right_on="product_key", how="outer", suffixes=("", "_order"))
 
-    # 商品名称：优先用推广数据的，缺失时补订单里的
-    if "product_name_x" in merged.columns and "product_name_y" in merged.columns:
-        merged["product_name"] = merged["product_name_x"].replace("", pd.NA).fillna(merged["product_name_y"]).fillna("").astype(str)
-        merged = merged.drop(columns=["product_name_x", "product_name_y"])
-    elif "product_name_y" in merged.columns:
-        merged["product_name"] = merged["product_name_y"]
-        merged = merged.drop(columns=["product_name_y"])
+    # 合并商品名称：优先使用推广侧（可能为空），否则使用订单侧
+    if "product_name_order" in merged.columns:
+        merged["product_name"] = merged["product_name"].replace("", pd.NA).fillna(merged["product_name_order"]).fillna("").astype(str)
+        merged = merged.drop(columns=["product_name_order"])
 
-    # 业务指标以订单为准
+    # 合并 plan 相关信息：外层合并后推广侧可能为 NA，需要保留
+    merged["product_id"] = merged["product_id"].fillna(merged["product_key"]).fillna(merged["product_name"]).astype(str)
+    if "product_key" in merged.columns:
+        merged = merged.drop(columns=["product_key"])
+
     merged["gmv"] = merged.get("order_gmv", 0).fillna(0)
     merged["valid_gmv"] = merged.get("valid_order_gmv", 0).fillna(0)
     merged["order_count"] = merged.get("order_count", 0).fillna(0)
@@ -164,13 +152,11 @@ def _merge_order_metrics(product_df: pd.DataFrame, orders_df: pd.DataFrame) -> p
     merged["actual_revenue"] = merged.get("order_actual_revenue", 0).fillna(0)
     merged["quantity"] = merged.get("quantity", 0).fillna(0)
     merged["valid_quantity"] = merged.get("valid_quantity", 0).fillna(0)
-    # 退款指标：推广数据缺失时用订单数据兜底
     refund_orders_col = merged.get("refund_orders", 0)
     refund_amount_col = merged.get("refund_amount", 0)
     merged["refund_orders"] = refund_orders_col.fillna(0) if hasattr(refund_orders_col, "fillna") else float(refund_orders_col)
     merged["refund_amount"] = refund_amount_col.fillna(0) if hasattr(refund_amount_col, "fillna") else float(refund_amount_col)
 
-    # 推广指标缺失时填 0
     for col in ["spend", "exposure", "clicks"]:
         if col in merged.columns:
             merged[col] = pd.to_numeric(merged[col], errors="coerce").fillna(0)
@@ -181,7 +167,7 @@ def _merge_order_metrics(product_df: pd.DataFrame, orders_df: pd.DataFrame) -> p
 
 
 def _merge_merchant_code_from_orders(product_df: pd.DataFrame, orders_df: pd.DataFrame) -> pd.DataFrame:
-    """把订单中的商家编码合并到商品指标（取每个商品出现次数最多的编码）。"""
+    """把订单中的商家编码合并到商品指标（取每个商品标题出现次数最多的编码）。"""
     if product_df is None or product_df.empty:
         return product_df
     df = product_df.copy()
@@ -190,15 +176,15 @@ def _merge_merchant_code_from_orders(product_df: pd.DataFrame, orders_df: pd.Dat
     mc = orders_df[orders_df["merchant_code"].astype(str).str.strip() != ""]
     if mc.empty:
         return df
-    mode = mc.groupby("product_id")["merchant_code"].agg(lambda x: x.mode().iloc[0] if not x.mode().empty else "").reset_index()
+    mode = mc.groupby("product_name")["merchant_code"].agg(lambda x: x.mode().iloc[0] if not x.mode().empty else "").reset_index()
     if "merchant_code" in df.columns:
         df = df.drop(columns=["merchant_code"])
-    df = df.merge(mode, on="product_id", how="left")
+    df = df.merge(mode, on="product_name", how="left")
     df["merchant_code"] = df["merchant_code"].fillna("").astype(str)
     return df
 
 
-def import_douyin_daily_data(
+def import_tmall_daily_data(
     store_name: str,
     import_date: Optional[datetime.date] = None,
     promo_bytes: Optional[bytes] = None,
@@ -206,20 +192,14 @@ def import_douyin_daily_data(
     order_bytes: Optional[bytes] = None,
     order_filename: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """导入抖音每日数据。
-
-    支持两种文件：
-    - 单日文件：只包含一个日期，按该日期保存。
-    - 全数据文件：包含多个日期，自动按日期拆分保存。
-    """
+    """导入天猫每日数据。"""
     processed_dates: set = set()
     total_product_rows = 0
     total_order_rows = 0
 
     if promo_bytes:
-        promo_df = read_promotion_file(promo_bytes, promo_filename or "promo.xlsx")
+        promo_df = read_promotion_file(promo_bytes, promo_filename or "promo.csv")
         if not promo_df.empty:
-            # 如果指定了日期且文件里有该日期，优先按指定日期处理；否则处理文件内所有日期
             promo_dates = promo_df["date"].dropna().unique()
             if import_date and _date_str(import_date) in promo_dates:
                 promo_dates = [_date_str(import_date)]
@@ -240,7 +220,7 @@ def import_douyin_daily_data(
                 total_product_rows += len(day_df)
 
     if order_bytes:
-        order_df = read_order_file(order_bytes, order_filename or "order.csv")
+        order_df = read_order_file(order_bytes, order_filename or "order.xlsx")
         if not order_df.empty:
             order_dates = order_df["order_date"].dropna().unique()
             if import_date and _date_str(import_date) in order_dates:
@@ -250,7 +230,6 @@ def import_douyin_daily_data(
                 if day_orders.empty:
                     continue
                 existing_product = load_daily_data(store_name, d)[0]
-                # 把订单数据合并到商品指标：订单是 GMV/订单数/实际收入/数量的基准
                 existing_product = _merge_order_metrics(existing_product, day_orders)
                 existing_product["date"] = d
                 meta = {
@@ -275,7 +254,7 @@ def import_douyin_daily_data(
     }
 
 
-def load_douyin_analysis(
+def load_tmall_analysis(
     store_name: str,
     start_date: datetime.date,
     end_date: datetime.date,
@@ -304,7 +283,7 @@ def load_douyin_analysis(
     })
 
 
-def load_douyin_trend(
+def load_tmall_trend(
     store_name: str,
     start_date: datetime.date,
     end_date: datetime.date,
@@ -326,15 +305,15 @@ def load_douyin_trend(
     return rows
 
 
-def get_douyin_dashboard_summary(
+def get_tmall_dashboard_summary(
     start_date: datetime.date,
     end_date: datetime.date,
     store_names: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
-    from douyin_storage import list_douyin_stores
+    from tmall_storage import list_tmall_stores
 
     if store_names is None:
-        store_names = list_douyin_stores()
+        store_names = list_tmall_stores()
 
     start_s = _date_str(start_date)
     end_s = _date_str(end_date)
@@ -372,75 +351,18 @@ def get_douyin_dashboard_summary(
     })
 
 
-def get_douyin_orders(store_name: str, date: datetime.date) -> List[Dict[str, Any]]:
+def get_tmall_orders(store_name: str, date: datetime.date) -> List[Dict[str, Any]]:
     _, orders = load_daily_data(store_name, _date_str(date))
     if orders.empty:
         return []
     return _json_safe(orders.replace({pd.NA: None, float("nan"): None}).to_dict("records"))
 
 
-# ---------- AI ----------
-
-def get_douyin_ai_config() -> Dict[str, Any]:
-    return get_ai_config()
+def get_tmall_records(store_name: Optional[str] = None) -> List[Dict[str, Any]]:
+    return _json_safe(list_tmall_records(store_name))
 
 
-def update_douyin_ai_config(config: Dict[str, Any]) -> Dict[str, Any]:
-    return update_ai_config(config)
-
-
-def test_douyin_ai(config: Dict[str, Any]) -> str:
-    return test_ai_connection(config)
-
-
-def generate_douyin_ai_report(
-    store_name: str,
-    start_date: datetime.date,
-    end_date: datetime.date,
-    config: Dict[str, Any],
-) -> Dict[str, Any]:
-    analysis = load_douyin_analysis(store_name, start_date, end_date)
-    return generate_ai_report(
-        kpis=analysis.get("kpis") or {},
-        product_metrics=analysis.get("product_metrics") or [],
-        config=config,
-    )
-
-
-# ---------- 企业微信 ----------
-
-_DOUYIN_WECOM_CONFIG_FILE = _Path("data/douyin_wecom_config.json")
-
-
-def _ensure_data_dir():
-    _DOUYIN_WECOM_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-
-
-def get_douyin_wecom_config() -> Dict[str, Any]:
-    if not _DOUYIN_WECOM_CONFIG_FILE.exists():
-        return {}
-    try:
-        return _json.loads(_DOUYIN_WECOM_CONFIG_FILE.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-
-
-def update_douyin_wecom_config(config: Dict[str, Any]) -> Dict[str, Any]:
-    _ensure_data_dir()
-    _DOUYIN_WECOM_CONFIG_FILE.write_text(_json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
-    return config
-
-
-def send_douyin_wecom_report(report_date: datetime.date, config: Dict[str, Any]) -> Dict[str, Any]:
-    content = build_daily_report(report_date)
-    return wecom_sender.send_wecom_report(content=content, config=config)
-
-
-def get_douyin_records(store_name: Optional[str] = None) -> List[Dict[str, Any]]:
-    return _json_safe(list_douyin_records(store_name))
-
-
-def delete_douyin_record(store_name: str, date: datetime.date) -> Dict[str, Any]:
+def delete_tmall_record(store_name: str, date: datetime.date) -> Dict[str, Any]:
     date_str = _date_str(date)
     delete_daily_data(store_name, date_str)
     bump_data_version()

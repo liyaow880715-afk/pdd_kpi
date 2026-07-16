@@ -46,7 +46,7 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
-DEFAULT_SUB_PAGES = ["overview", "stores", "import", "metrics", "orders", "costs", "douyin", "douyin_costs"]
+DEFAULT_SUB_PAGES = ["overview", "stores", "import", "metrics", "orders", "costs", "douyin", "douyin_costs", "tmall", "tmall_costs"]
 
 
 def ensure_admin(default_password: str, password_changed: bool = False):

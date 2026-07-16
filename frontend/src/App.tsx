@@ -36,6 +36,11 @@ import { DouyinOrdersPage } from "@/pages/douyin-orders"
 import { DouyinCostsPage } from "@/pages/douyin-costs"
 import { DouyinAiPage } from "@/pages/douyin-ai"
 import { DouyinWecomPage } from "@/pages/douyin-wecom"
+import { TmallDashboardPage } from "@/pages/tmall-dashboard"
+import { TmallImportPage } from "@/pages/tmall-import"
+import { TmallMetricsPage } from "@/pages/tmall-metrics"
+import { TmallOrdersPage } from "@/pages/tmall-orders"
+import { TmallCostsPage } from "@/pages/tmall-costs"
 import { ChangePasswordPage } from "@/pages/change-password"
 
 type Platform = "pdd" | "douyin" | "tmall"
@@ -70,6 +75,15 @@ const douyinNavItems: NavItem[] = [
   { id: "users", to: "/users", label: "用户", icon: Users },
 ]
 
+const tmallNavItems: NavItem[] = [
+  { id: "tmall", to: "/tmall", label: "天猫总览", icon: LayoutDashboard },
+  { id: "tmall", to: "/tmall/import", label: "天猫导入", icon: Upload },
+  { id: "tmall", to: "/tmall/metrics", label: "天猫指标", icon: BarChart3 },
+  { id: "tmall", to: "/tmall/orders", label: "天猫订单", icon: ShoppingCart },
+  { id: "tmall", to: "/tmall/costs", label: "天猫成本", icon: Coins },
+  { id: "users", to: "/users", label: "用户", icon: Users },
+]
+
 const platformTabs: { key: Platform; label: string; defaultTo: string }[] = [
   { key: "pdd", label: "拼多多", defaultTo: "/" },
   { key: "douyin", label: "抖音", defaultTo: "/douyin" },
@@ -94,16 +108,12 @@ function PlatformTabs({
       <div className="flex rounded-lg bg-muted p-1 gap-1">
         {platformTabs.map((tab) => {
           const active = platform === tab.key
-          const disabled = tab.key === "tmall"
           return (
             <button
               key={tab.key}
-              disabled={disabled}
               onClick={() => onChange(tab.key)}
               className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
-                disabled
-                  ? "text-muted-foreground/50 cursor-not-allowed"
-                  : active
+                active
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
               }`}
@@ -128,7 +138,7 @@ function Sidebar({
 }) {
   const user = getCurrentUser()
   const showMaster = isMaster()
-  const navItems = platform === "douyin" ? douyinNavItems : pddNavItems
+  const navItems = platform === "douyin" ? douyinNavItems : platform === "tmall" ? tmallNavItems : pddNavItems
   const visibleItems = navItems.filter((item) => (showMaster ? true : canAccessPage(item.id)))
 
   return (
@@ -152,6 +162,7 @@ function Sidebar({
           <NavLink
             key={item.to}
             to={item.to}
+            end
             onClick={onClose}
             className={({ isActive }) =>
               `flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
@@ -187,15 +198,6 @@ function Sidebar({
         </div>
       </div>
     </aside>
-  )
-}
-
-function TmallPlaceholder() {
-  return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] text-muted-foreground">
-      <h2 className="text-2xl font-bold mb-2">天猫</h2>
-      <p>天猫板块暂未上线，敬请期待</p>
-    </div>
   )
 }
 
@@ -260,7 +262,11 @@ function Layout() {
             <Route path="/douyin/costs" element={<DouyinCostsPage />} />
             <Route path="/douyin/ai" element={<DouyinAiPage />} />
             <Route path="/douyin/wecom" element={<DouyinWecomPage />} />
-            <Route path="/tmall" element={<TmallPlaceholder />} />
+            <Route path="/tmall" element={<TmallDashboardPage />} />
+            <Route path="/tmall/import" element={<TmallImportPage />} />
+            <Route path="/tmall/metrics" element={<TmallMetricsPage />} />
+            <Route path="/tmall/orders" element={<TmallOrdersPage />} />
+            <Route path="/tmall/costs" element={<TmallCostsPage />} />
             <Route path="/change-password" element={<ChangePasswordPage />} />
           </Routes>
         </div>

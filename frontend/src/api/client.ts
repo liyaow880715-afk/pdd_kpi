@@ -442,3 +442,142 @@ export async function deleteDouyinRecord(storeName: string, date: string) {
   const res = await api.delete(`/douyin/records/${storeName}/${date}`)
   return res.data
 }
+
+// ---------- 天猫 ----------
+
+export type TmallCost = {
+  merchant_code: string
+  product_name: string
+  product_cost: number
+  logistics_cost: number
+  updated_at?: string
+}
+
+export type TmallAnalysisData = {
+  product_metrics: Record<string, any>[]
+  kpis: Record<string, number | null>
+  cost_kpis: Record<string, number | null>
+}
+
+export async function importTmallData(formData: FormData) {
+  const res = await api.post("/tmall/import", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  })
+  return res.data
+}
+
+export async function getTmallDashboardSummary(startDate: string, endDate: string, storeNames?: string[]) {
+  const params: Record<string, any> = { start_date: startDate, end_date: endDate }
+  if (storeNames && storeNames.length > 0) {
+    params.store_names = storeNames
+  }
+  const res = await api.get("/tmall/dashboard", { params })
+  return res.data as { store_count: number; kpis: Record<string, number | null>; cost_kpis: Record<string, number | null>; trend: any[] }
+}
+
+export async function getTmallAnalysis(storeName: string, startDate: string, endDate: string) {
+  const res = await api.get<TmallAnalysisData>("/tmall/analysis", {
+    params: { store_name: storeName, start_date: startDate, end_date: endDate },
+  })
+  return res.data
+}
+
+export async function getTmallTrend(storeName: string, startDate: string, endDate: string) {
+  const res = await api.get("/tmall/trend", {
+    params: { store_name: storeName, start_date: startDate, end_date: endDate },
+  })
+  return res.data
+}
+
+export async function getTmallOrders(storeName: string, date: string) {
+  const res = await api.get("/tmall/orders", { params: { store_name: storeName, date } })
+  return res.data
+}
+
+export async function getTmallCosts() {
+  const res = await api.get<TmallCost[]>("/tmall/costs")
+  return res.data
+}
+
+export async function saveTmallCosts(costs: TmallCost[]) {
+  const res = await api.post("/tmall/costs", { costs })
+  return res.data
+}
+
+export async function refreshTmallCostCodes() {
+  const res = await api.post<{ added: number }>("/tmall/costs/refresh")
+  return res.data
+}
+
+export async function exportTmallCosts(pendingOnly: boolean = false) {
+  const res = await api.get("/tmall/costs/export", {
+    params: pendingOnly ? { pending_only: true } : {},
+    responseType: "blob",
+  })
+  return res.data as Blob
+}
+
+export async function importTmallCosts(file: File) {
+  const formData = new FormData()
+  formData.append("file", file)
+  const res = await api.post("/tmall/costs/import", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  })
+  return res.data as { updated: number }
+}
+
+export interface TmallUnmappedRow {
+  product_id: string
+  product_name: string
+  style_id: string
+  style_name: string
+  store_name: string
+  order_count: number
+  first_date: string
+}
+
+export async function getTmallUnmappedProducts(startDate?: string, endDate?: string, storeName?: string) {
+  const params: Record<string, any> = {}
+  if (startDate) params.start_date = startDate
+  if (endDate) params.end_date = endDate
+  if (storeName) params.store_name = storeName
+  const res = await api.get<TmallUnmappedRow[]>("/tmall/costs/unmapped", { params })
+  return res.data
+}
+
+export async function mapTmallProductToMerchantCode(
+  productId: string,
+  merchantCode: string,
+  styleId?: string,
+  productName?: string
+) {
+  const res = await api.post("/tmall/costs/map", {
+    product_id: productId,
+    merchant_code: merchantCode,
+    style_id: styleId,
+    product_name: productName,
+  })
+  return res.data
+}
+
+export type TmallImportRecord = {
+  date: string
+  store_name: string
+  promo_file: string
+  order_file: string
+  product_rows: number
+  order_rows: number
+  saved_at?: string
+}
+
+export async function getTmallRecords(storeName?: string) {
+  const res = await api.get<TmallImportRecord[]>("/tmall/records", {
+    params: storeName ? { store_name: storeName } : {},
+  })
+  return res.data
+}
+
+export async function deleteTmallRecord(storeName: string, date: string) {
+  const res = await api.delete(`/tmall/records/${storeName}/${date}`)
+  return res.data
+}

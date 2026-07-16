@@ -86,6 +86,7 @@ export function StoresPage() {
             >
               <option value="pdd">拼多多</option>
               <option value="douyin">抖音</option>
+              <option value="tmall">天猫</option>
             </select>
             <Button onClick={handleCreate} disabled={loading}>
               <Plus className="h-4 w-4 mr-1" /> 新增
@@ -124,7 +125,7 @@ export function StoresPage() {
                   </TableCell>
                   <TableCell>
                     <span className="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">
-                      {store.platform === "douyin" ? "抖音" : "拼多多"}
+                      {store.platform === "douyin" ? "抖音" : store.platform === "tmall" ? "天猫" : "拼多多"}
                     </span>
                   </TableCell>
                   <TableCell>{new Date(store.created_at).toLocaleString()}</TableCell>
