@@ -114,6 +114,12 @@ def aggregate_product_metrics(daily_list: List[pd.DataFrame]) -> pd.DataFrame:
     ]
     agg = {c: "sum" for c in sum_cols if c in combined.columns}
     agg["product_name"] = lambda x: x.dropna().astype(str).iloc[0] if len(x) else ""
+    if "merchant_code" in combined.columns:
+        def _first_non_empty_code(x):
+            codes = x.dropna().astype(str).str.strip()
+            codes = codes[codes != ""]
+            return codes.iloc[0] if len(codes) else ""
+        agg["merchant_code"] = _first_non_empty_code
 
     grouped = combined.groupby("product_id").agg(agg).reset_index()
     grouped["roi"] = grouped.apply(lambda r: safe_div(r["gmv"], r["spend"]), axis=1)

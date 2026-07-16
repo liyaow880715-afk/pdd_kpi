@@ -88,12 +88,21 @@ def _build_order_summary(orders_df: pd.DataFrame) -> pd.DataFrame:
             valid_quantity=("quantity", lambda x: x[df.loc[x.index, "is_valid"]].sum()),
             refund_orders=("order_id", lambda x: x[df.loc[x.index, "is_refund"]].size),
             refund_amount=("refund_amount", "sum"),
+            merchant_code=("merchant_code", lambda x: _mode_str(x)),
         )
         .reset_index()
     )
     for col in ["valid_order_gmv", "valid_order_count", "valid_quantity", "refund_orders", "refund_amount"]:
         grouped[col] = pd.to_numeric(grouped[col], errors="coerce").fillna(0)
     return grouped
+
+
+def _mode_str(series: pd.Series) -> str:
+    s = series.dropna().astype(str).str.strip()
+    s = s[s != ""]
+    if s.empty:
+        return ""
+    return s.mode().iloc[0]
 
 
 def _merge_order_metrics(product_df: pd.DataFrame, orders_df: pd.DataFrame) -> pd.DataFrame:
@@ -167,20 +176,24 @@ def _merge_order_metrics(product_df: pd.DataFrame, orders_df: pd.DataFrame) -> p
 
 
 def _merge_merchant_code_from_orders(product_df: pd.DataFrame, orders_df: pd.DataFrame) -> pd.DataFrame:
-    """把订单中的商家编码合并到商品指标（取每个商品标题出现次数最多的编码）。"""
+    """兜底：把订单中的商家编码合并到尚未有编码的商品指标。"""
     if product_df is None or product_df.empty:
         return product_df
     df = product_df.copy()
+    if "merchant_code" not in df.columns:
+        df["merchant_code"] = ""
     if orders_df is None or orders_df.empty or "merchant_code" not in orders_df.columns:
+        return df
+    needs = df[df["merchant_code"].astype(str).str.strip() == ""]
+    if needs.empty:
         return df
     mc = orders_df[orders_df["merchant_code"].astype(str).str.strip() != ""]
     if mc.empty:
         return df
     mode = mc.groupby("product_name")["merchant_code"].agg(lambda x: x.mode().iloc[0] if not x.mode().empty else "").reset_index()
-    if "merchant_code" in df.columns:
-        df = df.drop(columns=["merchant_code"])
-    df = df.merge(mode, on="product_name", how="left")
-    df["merchant_code"] = df["merchant_code"].fillna("").astype(str)
+    mapping = dict(zip(mode["product_name"].astype(str).str.strip(), mode["merchant_code"].astype(str)))
+    mask = df["merchant_code"].astype(str).str.strip() == ""
+    df.loc[mask, "merchant_code"] = df.loc[mask, "product_name"].astype(str).str.strip().map(mapping).fillna("")
     return df
 
 
