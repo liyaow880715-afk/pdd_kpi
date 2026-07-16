@@ -10,6 +10,8 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
+import tmall_ai_analyzer as _tmall_ai
+import wecom as _wecom_sender
 from tmall_loader import read_order_file, read_promotion_file
 from tmall_metrics import aggregate_product_metrics, build_product_metrics_from_orders, compute_overall_kpis
 from tmall_cost_manager import apply_costs_to_metrics, compute_cost_kpis
@@ -380,3 +382,64 @@ def delete_tmall_record(store_name: str, date: datetime.date) -> Dict[str, Any]:
     delete_daily_data(store_name, date_str)
     bump_data_version()
     return {"deleted": True, "store_name": store_name, "date": date_str}
+
+
+# ---------- AI ----------
+
+
+def get_tmall_ai_config() -> Dict[str, Any]:
+    return _tmall_ai.get_ai_config()
+
+
+def update_tmall_ai_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    return _tmall_ai.update_ai_config(config)
+
+
+def test_tmall_ai(config: Dict[str, Any]) -> str:
+    return _tmall_ai.test_ai_connection(config)
+
+
+def generate_tmall_ai_report(
+    store_name: str,
+    start_date: datetime.date,
+    end_date: datetime.date,
+    config: Dict[str, Any],
+) -> Dict[str, Any]:
+    analysis = load_tmall_analysis(store_name, start_date, end_date)
+    return _tmall_ai.generate_ai_report(
+        kpis=analysis.get("kpis") or {},
+        product_metrics=analysis.get("product_metrics") or [],
+        config=config,
+    )
+
+
+# ---------- 企业微信 ----------
+
+
+_TMALL_WECOM_CONFIG_FILE = _Path("data/tmall_wecom_config.json")
+
+
+def _ensure_wecom_dir():
+    _TMALL_WECOM_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+
+def get_tmall_wecom_config() -> Dict[str, Any]:
+    if not _TMALL_WECOM_CONFIG_FILE.exists():
+        return {}
+    try:
+        return _json.loads(_TMALL_WECOM_CONFIG_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def update_tmall_wecom_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    _ensure_wecom_dir()
+    _TMALL_WECOM_CONFIG_FILE.write_text(_json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
+    return config
+
+
+def send_tmall_wecom_report(report_date: datetime.date, config: Dict[str, Any]) -> Dict[str, Any]:
+    from tmall_report_builder import build_daily_report
+
+    content = build_daily_report(report_date)
+    return _wecom_sender.send_wecom_report(content=content, config=config)

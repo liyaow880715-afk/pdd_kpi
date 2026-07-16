@@ -581,3 +581,47 @@ export async function deleteTmallRecord(storeName: string, date: string) {
   const res = await api.delete(`/tmall/records/${storeName}/${date}`)
   return res.data
 }
+
+export async function getTmallAiConfig() {
+  const res = await api.get("/tmall/ai/config")
+  return res.data
+}
+
+export async function updateTmallAiConfig(config: Record<string, any>) {
+  const res = await api.post("/tmall/ai/config", config)
+  return res.data
+}
+
+export async function testTmallAi(config: Record<string, any>) {
+  const res = await api.post("/tmall/ai/test", config)
+  return res.data
+}
+
+export async function generateTmallAiReport(
+  storeName: string,
+  startDate: string,
+  endDate: string,
+  config: Record<string, any>
+) {
+  const res = await api.post("/tmall/ai/report", config, {
+    params: { store_name: storeName, start_date: startDate, end_date: endDate },
+  })
+  return res.data
+}
+
+export async function getTmallWecomConfig() {
+  const res = await api.get("/tmall/wecom/config")
+  return res.data
+}
+
+export async function updateTmallWecomConfig(config: Record<string, any>) {
+  const res = await api.post("/tmall/wecom/config", config)
+  return res.data
+}
+
+export async function sendTmallWecomReport(reportDate: string, config: Record<string, any>) {
+  const res = await api.post("/tmall/wecom/send", config, {
+    params: { report_date: reportDate },
+  })
+  return res.data
+}

@@ -41,6 +41,8 @@ import { TmallImportPage } from "@/pages/tmall-import"
 import { TmallMetricsPage } from "@/pages/tmall-metrics"
 import { TmallOrdersPage } from "@/pages/tmall-orders"
 import { TmallCostsPage } from "@/pages/tmall-costs"
+import { TmallAiPage } from "@/pages/tmall-ai"
+import { TmallWecomPage } from "@/pages/tmall-wecom"
 import { ChangePasswordPage } from "@/pages/change-password"
 
 type Platform = "pdd" | "douyin" | "tmall"
@@ -81,6 +83,8 @@ const tmallNavItems: NavItem[] = [
   { id: "tmall", to: "/tmall/metrics", label: "天猫指标", icon: BarChart3 },
   { id: "tmall", to: "/tmall/orders", label: "天猫订单", icon: ShoppingCart },
   { id: "tmall", to: "/tmall/costs", label: "天猫成本", icon: Coins },
+  { id: "tmall_ai", to: "/tmall/ai", label: "天猫 AI", icon: Bot },
+  { id: "tmall_wecom", to: "/tmall/wecom", label: "天猫企微", icon: MessageCircle },
   { id: "users", to: "/users", label: "用户", icon: Users },
 ]
 
@@ -267,6 +271,8 @@ function Layout() {
             <Route path="/tmall/metrics" element={<TmallMetricsPage />} />
             <Route path="/tmall/orders" element={<TmallOrdersPage />} />
             <Route path="/tmall/costs" element={<TmallCostsPage />} />
+            <Route path="/tmall/ai" element={<TmallAiPage />} />
+            <Route path="/tmall/wecom" element={<TmallWecomPage />} />
             <Route path="/change-password" element={<ChangePasswordPage />} />
           </Routes>
         </div>
