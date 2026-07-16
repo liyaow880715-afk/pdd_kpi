@@ -22,6 +22,7 @@ from metrics import (
 )
 from cost_manager import (
     apply_costs_to_metrics,
+    compute_cost_kpis,
     load_cost_config,
     save_cost_config,
     set_cost,
