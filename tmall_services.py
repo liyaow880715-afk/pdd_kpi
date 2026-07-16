@@ -71,11 +71,13 @@ def _build_order_summary(orders_df: pd.DataFrame) -> pd.DataFrame:
     df["quantity"] = pd.to_numeric(df.get("quantity", 0), errors="coerce").fillna(0)
     df["refund_amount"] = pd.to_numeric(df.get("refund_amount", 0), errors="coerce").fillna(0)
 
-    df["is_valid"] = True
-    df["is_refund"] = df["refund_amount"] > 0
+    # 净订单：买家有实际付款且订单未关闭/取消
     invalid_status = df["order_status"].astype(str).str.contains("关闭|取消|交易关闭", na=False)
-    df.loc[invalid_status, "is_valid"] = False
-    df.loc[df["is_refund"], "is_valid"] = False
+    df["is_valid"] = (df["actual_revenue"] > 0) & (~invalid_status)
+    df["is_refund"] = df["refund_amount"] > 0
+
+    # 净成交金额按「实付 - 退款」计算
+    df["net_revenue"] = df["actual_revenue"] - df["refund_amount"]
 
     grouped = (
         df.groupby("product_key")
@@ -85,7 +87,7 @@ def _build_order_summary(orders_df: pd.DataFrame) -> pd.DataFrame:
             order_actual_revenue=("actual_revenue", "sum"),
             order_count=("order_id", "size"),
             quantity=("quantity", "sum"),
-            valid_order_gmv=("amount", lambda x: x[df.loc[x.index, "is_valid"]].sum()),
+            valid_order_gmv=("net_revenue", lambda x: x[df.loc[x.index, "is_valid"]].sum()),
             valid_order_count=("order_id", lambda x: x[df.loc[x.index, "is_valid"]].size),
             valid_quantity=("quantity", lambda x: x[df.loc[x.index, "is_valid"]].sum()),
             refund_orders=("order_id", lambda x: x[df.loc[x.index, "is_refund"]].size),
