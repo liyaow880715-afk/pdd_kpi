@@ -41,9 +41,30 @@ def update_from_github(_: dict = Depends(require_master)):
     project_dir = "/home/ubuntu/pdd_kpi"
     steps = []
 
-    # 1. git pull
+    # 1. git pull（使用仓库里的 deploy key 鉴权）
     git_path = shutil.which("git") or "git"
-    steps.append(_run([git_path, "pull", "origin", "master"], cwd=project_dir))
+    key_path = os.path.join(project_dir, ".github_deploy_key")
+    env_ssh = f"ssh -i {key_path} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+    env = os.environ.copy()
+    env["GIT_SSH_COMMAND"] = env_ssh
+    try:
+        result = subprocess.run(
+            [git_path, "pull", "origin", "master"],
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+            env=env,
+        )
+        steps.append({
+            "cmd": "git pull origin master",
+            "returncode": result.returncode,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+        })
+    except Exception as e:
+        steps.append({"cmd": "git pull origin master", "returncode": -1, "stdout": "", "stderr": str(e)})
 
     # 2. 清理字节码缓存
     steps.append(_run(["find", ".", "-type", "d", "-name", "__pycache__", "-exec", "rm", "-rf", "{}", "+"], cwd=project_dir))
