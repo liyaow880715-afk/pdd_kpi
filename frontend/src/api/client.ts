@@ -92,6 +92,11 @@ export async function getHealth() {
   return res.data
 }
 
+export async function updateFromGithub() {
+  const res = await api.post("/system/update")
+  return res.data as { success: boolean; steps: any[] }
+}
+
 export async function getStores(platform?: string) {
   const res = await api.get<Store[]>("/stores", { params: platform ? { platform } : {} })
   return res.data

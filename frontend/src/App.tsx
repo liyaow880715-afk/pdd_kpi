@@ -14,11 +14,13 @@ import {
   LogOut,
   Users,
   Settings,
+  RefreshCw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { AuthGuard } from "@/components/auth-guard"
 import { canAccessPage, getCurrentUser, isMaster, logout } from "@/api/auth"
+import { updateFromGithub } from "@/api/client"
 import { LoginPage } from "@/pages/login"
 import { DashboardPage } from "@/pages/dashboard"
 import { StoresPage } from "@/pages/stores"
@@ -56,7 +58,6 @@ interface NavItem {
 
 const pddNavItems: NavItem[] = [
   { id: "overview", to: "/", label: "总览", icon: LayoutDashboard },
-  { id: "stores", to: "/stores", label: "店铺", icon: Store },
   { id: "import", to: "/import", label: "导入", icon: Upload },
   { id: "metrics", to: "/metrics", label: "指标", icon: BarChart3 },
   { id: "orders", to: "/orders", label: "订单", icon: ShoppingCart },
@@ -142,8 +143,24 @@ function Sidebar({
 }) {
   const user = getCurrentUser()
   const showMaster = isMaster()
+  const [updating, setUpdating] = useState(false)
+  const [updateMsg, setUpdateMsg] = useState("")
   const navItems = platform === "douyin" ? douyinNavItems : platform === "tmall" ? tmallNavItems : pddNavItems
   const visibleItems = navItems.filter((item) => (showMaster ? true : canAccessPage(item.id)))
+
+  const handleUpdate = async () => {
+    if (!confirm("确定从 GitHub 拉取最新代码并重启服务？")) return
+    setUpdating(true)
+    setUpdateMsg("")
+    try {
+      const res = await updateFromGithub()
+      setUpdateMsg(res.success ? "更新成功，服务已重启" : `更新失败：${JSON.stringify(res.steps)}`)
+    } catch (err: any) {
+      setUpdateMsg(err.message)
+    } finally {
+      setUpdating(false)
+    }
+  }
 
   return (
     <aside className="w-64 border-r bg-card min-h-screen p-4 flex flex-col">
@@ -188,11 +205,25 @@ function Sidebar({
             {user?.role === "master" ? "主账号" : "子账号"}
           </div>
         </div>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1">
+          {(showMaster || canAccessPage("stores")) && (
+            <NavLink to="/stores" onClick={onClose}>
+              <Button variant="ghost" size="sm" className="text-muted-foreground">
+                <Store className="mr-1 h-4 w-4" />
+                店铺
+              </Button>
+            </NavLink>
+          )}
+          {showMaster && (
+            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={handleUpdate} disabled={updating}>
+              <RefreshCw className={`mr-1 h-4 w-4 ${updating ? "animate-spin" : ""}`} />
+              {updating ? "更新中" : "更新"}
+            </Button>
+          )}
+          <div className="flex-1" />
           <NavLink to="/change-password">
-            <Button variant="ghost" size="sm" className="text-muted-foreground">
-              <Settings className="mr-1 h-4 w-4" />
-              改密码
+            <Button variant="ghost" size="icon" className="text-muted-foreground">
+              <Settings className="h-4 w-4" />
             </Button>
           </NavLink>
           <ThemeToggle />
@@ -200,6 +231,7 @@ function Sidebar({
             <LogOut className="h-4 w-4 text-muted-foreground" />
           </Button>
         </div>
+        {updateMsg && <div className="px-2 text-xs text-destructive">{updateMsg}</div>}
       </div>
     </aside>
   )
