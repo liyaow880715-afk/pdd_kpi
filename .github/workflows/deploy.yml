@@ -27,9 +27,10 @@ jobs:
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.SERVER_HOST || '122.152.201.146' }}
-          username: ${{ secrets.SERVER_USER || 'ubuntu' }}
+          host: 122.152.201.146
+          username: ubuntu
           key: ${{ steps.deploy_key.outputs.key }}
+          debug: true
           script: |
             cd /home/ubuntu/pdd_kpi
             git pull origin master
