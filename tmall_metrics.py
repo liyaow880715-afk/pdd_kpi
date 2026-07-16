@@ -111,6 +111,8 @@ def aggregate_product_metrics(daily_list: List[pd.DataFrame]) -> pd.DataFrame:
         "spend", "gmv", "valid_gmv", "order_count", "valid_order_count",
         "exposure", "clicks", "refund_orders", "refund_amount", "actual_revenue",
         "quantity", "valid_quantity",
+        "direct_gmv", "indirect_gmv", "direct_order_count", "indirect_order_count",
+        "cart_count", "collect_count", "presell_gmv", "presell_order_count",
     ]
     agg = {c: "sum" for c in sum_cols if c in combined.columns}
     agg["product_name"] = lambda x: x.dropna().astype(str).iloc[0] if len(x) else ""
