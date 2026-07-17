@@ -1,6 +1,6 @@
 """
 系统级接口
-- 主账号手动拉取 GitHub 最新代码并重启服务
+- 主账号手动拉取 GitHub 最新代码，重新构建前端并重启服务
 """
 
 import os
@@ -15,6 +15,11 @@ from auth import require_master
 router = APIRouter()
 
 
+PROJECT_DIR = "/home/ubuntu/pdd_kpi"
+FRONTEND_DIR = os.path.join(PROJECT_DIR, "frontend")
+DEPLOY_DIR = "/var/www/pdd_kpi/dist"
+
+
 def _ensure_path(env: Dict[str, str]) -> Dict[str, str]:
     """确保 PATH 包含系统命令目录（systemd 服务里可能只有 venv/bin）"""
     path = env.get("PATH", "")
@@ -25,26 +30,33 @@ def _ensure_path(env: Dict[str, str]) -> Dict[str, str]:
     return env
 
 
-def _run(cmd: list[str], cwd: str = "/home/ubuntu/pdd_kpi") -> Dict[str, Any]:
+def _run(
+    cmd: list[str],
+    cwd: str = PROJECT_DIR,
+    timeout: int = 120,
+    shell: bool = False,
+    env: Dict[str, str] | None = None,
+) -> Dict[str, Any]:
     try:
-        env = _ensure_path(os.environ.copy())
+        run_env = _ensure_path((env or os.environ).copy())
         result = subprocess.run(
             cmd,
             cwd=cwd,
             capture_output=True,
             text=True,
-            timeout=120,
+            timeout=timeout,
             check=False,
-            env=env,
+            env=run_env,
+            shell=shell,
         )
         return {
-            "cmd": " ".join(cmd),
+            "cmd": " ".join(cmd) if isinstance(cmd, list) else cmd,
             "returncode": result.returncode,
             "stdout": result.stdout,
             "stderr": result.stderr,
         }
     except Exception as e:
-        return {"cmd": " ".join(cmd), "returncode": -1, "stdout": "", "stderr": str(e)}
+        return {"cmd": " ".join(cmd) if isinstance(cmd, list) else cmd, "returncode": -1, "stdout": "", "stderr": str(e)}
 
 
 def _git_revision(cmd: list[str], cwd: str, env: Dict[str, str]) -> str:
@@ -62,19 +74,18 @@ def _git_revision(cmd: list[str], cwd: str, env: Dict[str, str]) -> str:
 
 @router.post("/update", response_model=Dict[str, Any])
 def update_from_github(_: dict = Depends(require_master)):
-    """从 GitHub 拉取最新代码并重启服务；若版本已一致则跳过重启"""
-    project_dir = "/home/ubuntu/pdd_kpi"
+    """从 GitHub 拉取最新代码，构建前端并重启服务；若版本已一致则跳过"""
     steps = []
 
     git_path = shutil.which("git") or "git"
-    key_path = os.path.join(project_dir, ".github_deploy_key")
+    key_path = os.path.join(PROJECT_DIR, ".github_deploy_key")
     env_ssh = f"ssh -i {key_path} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
     env = _ensure_path(os.environ.copy())
     env["GIT_SSH_COMMAND"] = env_ssh
 
     # 0. 版本核验：本地 HEAD vs 远端 master HEAD
-    local_head = _git_revision([git_path, "rev-parse", "HEAD"], project_dir, env)
-    remote_head = _git_revision([git_path, "ls-remote", "origin", "master"], project_dir, env)
+    local_head = _git_revision([git_path, "rev-parse", "HEAD"], PROJECT_DIR, env)
+    remote_head = _git_revision([git_path, "ls-remote", "origin", "master"], PROJECT_DIR, env)
     if local_head and remote_head and local_head == remote_head:
         return {
             "success": True,
@@ -86,38 +97,37 @@ def update_from_github(_: dict = Depends(require_master)):
         }
 
     # 1. git pull（使用仓库里的 deploy key 鉴权）
-    key_path = os.path.join(project_dir, ".github_deploy_key")
-    env_ssh = f"ssh -i {key_path} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-    env = _ensure_path(os.environ.copy())
-    env["GIT_SSH_COMMAND"] = env_ssh
-    try:
-        result = subprocess.run(
-            [git_path, "pull", "origin", "master"],
-            cwd=project_dir,
-            capture_output=True,
-            text=True,
-            timeout=120,
-            check=False,
-            env=env,
-        )
-        steps.append({
-            "cmd": "git pull origin master",
-            "returncode": result.returncode,
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-        })
-    except Exception as e:
-        steps.append({"cmd": "git pull origin master", "returncode": -1, "stdout": "", "stderr": str(e)})
+    pull_step = _run([git_path, "pull", "origin", "master"], cwd=PROJECT_DIR, env=env)
+    steps.append(pull_step)
+    if pull_step["returncode"] != 0:
+        return {"success": False, "steps": steps}
 
-    # 2. 清理字节码缓存
-    steps.append(_run(["find", ".", "-type", "d", "-name", "__pycache__", "-exec", "rm", "-rf", "{}", "+"], cwd=project_dir))
+    # 2. 安装/更新前端依赖
+    steps.append(_run(["npm", "install"], cwd=FRONTEND_DIR, timeout=180))
 
-    # 3. 延迟重启服务，确保当前 HTTP 响应能返回给前端
+    # 3. 构建前端
+    steps.append(_run(["npm", "run", "build"], cwd=FRONTEND_DIR, timeout=180))
+
+    # 4. 部署 dist 到 Nginx 目录
+    deploy_cmd = [
+        "bash",
+        "-c",
+        f"sudo -n rm -rf {DEPLOY_DIR} && "
+        f"sudo -n cp -r {os.path.join(FRONTEND_DIR, 'dist')} {DEPLOY_DIR} && "
+        f"sudo -n chown -R www-data:www-data {DEPLOY_DIR} && "
+        f"sudo -n chmod -R 755 {DEPLOY_DIR}",
+    ]
+    steps.append(_run(deploy_cmd, cwd=PROJECT_DIR, timeout=60))
+
+    # 5. 清理字节码缓存
+    steps.append(_run(["find", ".", "-type", "d", "-name", "__pycache__", "-exec", "rm", "-rf", "{}", "+"], cwd=PROJECT_DIR))
+
+    # 6. 延迟重启后端服务，确保当前 HTTP 响应能返回给前端
     restart_cmd = "nohup bash -c 'sleep 3 && sudo -n systemctl restart pdd_kpi' > /tmp/pdd_kpi_restart.log 2>&1 &"
     try:
         proc = subprocess.Popen(
             restart_cmd,
-            cwd=project_dir,
+            cwd=PROJECT_DIR,
             shell=True,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
