@@ -46,7 +46,13 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
-DEFAULT_SUB_PAGES = ["overview", "stores", "import", "metrics", "orders", "costs", "douyin", "douyin_costs", "tmall", "tmall_costs", "wechat", "wechat_costs", "ai_wecom"]
+DEFAULT_SUB_PAGES = [
+    "overview", "stores", "import", "metrics", "orders", "costs",
+    "douyin_overview", "douyin_import", "douyin_metrics", "douyin_orders", "douyin_costs",
+    "tmall_overview", "tmall_import", "tmall_metrics", "tmall_orders", "tmall_costs",
+    "wechat_overview", "wechat_import", "wechat_metrics", "wechat_orders", "wechat_costs",
+    "ai_wecom",
+]
 
 
 def ensure_admin(default_password: str, password_changed: bool = False):
@@ -69,8 +75,13 @@ def ensure_admin(default_password: str, password_changed: bool = False):
         }
         updated = True
 
-    # 为旧子账号补齐默认页面权限，并迁移旧的 AI/企微权限为统一入口
+    # 为旧子账号补齐默认页面权限，并迁移旧权限名为新的细分权限
     OLD_AI_WECOM_PAGES = {"ai", "wecom", "douyin_ai", "douyin_wecom", "tmall_ai", "tmall_wecom"}
+    OLD_PLATFORM_PAGES = {
+        "douyin": ["douyin_overview", "douyin_import", "douyin_metrics", "douyin_orders", "douyin_costs"],
+        "tmall": ["tmall_overview", "tmall_import", "tmall_metrics", "tmall_orders", "tmall_costs"],
+        "wechat": ["wechat_overview", "wechat_import", "wechat_metrics", "wechat_orders", "wechat_costs"],
+    }
     for u in users.values():
         if u.get("role") != "sub":
             continue
@@ -80,13 +91,22 @@ def ensure_admin(default_password: str, password_changed: bool = False):
             continue
         pages = set(u["allowed_pages"])
         changed = False
+        # 迁移 AI/企微旧入口
         if pages & OLD_AI_WECOM_PAGES:
             pages.add("ai_wecom")
             pages -= OLD_AI_WECOM_PAGES
             changed = True
-        if "ai_wecom" not in pages:
-            pages.add("ai_wecom")
-            changed = True
+        # 迁移平台旧入口为细分权限
+        for old_id, new_ids in OLD_PLATFORM_PAGES.items():
+            if old_id in pages:
+                pages.update(new_ids)
+                pages.discard(old_id)
+                changed = True
+        # 补齐缺失的默认权限
+        for pid in DEFAULT_SUB_PAGES:
+            if pid not in pages:
+                pages.add(pid)
+                changed = True
         if changed:
             u["allowed_pages"] = list(pages)
             updated = True

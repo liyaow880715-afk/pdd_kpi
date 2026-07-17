@@ -69,29 +69,29 @@ const pddNavItems: NavItem[] = [
 ]
 
 const douyinNavItems: NavItem[] = [
-  { id: "douyin", to: "/douyin", label: "抖音总览", icon: LayoutDashboard },
-  { id: "douyin", to: "/douyin/import", label: "抖音导入", icon: Upload },
-  { id: "douyin", to: "/douyin/metrics", label: "抖音指标", icon: BarChart3 },
-  { id: "douyin", to: "/douyin/orders", label: "抖音订单", icon: ShoppingCart },
-  { id: "douyin", to: "/douyin/costs", label: "抖音成本", icon: Coins },
+  { id: "douyin_overview", to: "/douyin", label: "抖音总览", icon: LayoutDashboard },
+  { id: "douyin_import", to: "/douyin/import", label: "抖音导入", icon: Upload },
+  { id: "douyin_metrics", to: "/douyin/metrics", label: "抖音指标", icon: BarChart3 },
+  { id: "douyin_orders", to: "/douyin/orders", label: "抖音订单", icon: ShoppingCart },
+  { id: "douyin_costs", to: "/douyin/costs", label: "抖音成本", icon: Coins },
   { id: "ai_wecom", to: "/ai-wecom", label: "AI & 企微", icon: Bot },
 ]
 
 const tmallNavItems: NavItem[] = [
-  { id: "tmall", to: "/tmall", label: "天猫总览", icon: LayoutDashboard },
-  { id: "tmall", to: "/tmall/import", label: "天猫导入", icon: Upload },
-  { id: "tmall", to: "/tmall/metrics", label: "天猫指标", icon: BarChart3 },
-  { id: "tmall", to: "/tmall/orders", label: "天猫订单", icon: ShoppingCart },
-  { id: "tmall", to: "/tmall/costs", label: "天猫成本", icon: Coins },
+  { id: "tmall_overview", to: "/tmall", label: "天猫总览", icon: LayoutDashboard },
+  { id: "tmall_import", to: "/tmall/import", label: "天猫导入", icon: Upload },
+  { id: "tmall_metrics", to: "/tmall/metrics", label: "天猫指标", icon: BarChart3 },
+  { id: "tmall_orders", to: "/tmall/orders", label: "天猫订单", icon: ShoppingCart },
+  { id: "tmall_costs", to: "/tmall/costs", label: "天猫成本", icon: Coins },
   { id: "ai_wecom", to: "/ai-wecom", label: "AI & 企微", icon: Bot },
 ]
 
 const wechatNavItems: NavItem[] = [
-  { id: "wechat", to: "/wechat", label: "微信总览", icon: LayoutDashboard },
-  { id: "wechat", to: "/wechat/import", label: "微信导入", icon: Upload },
-  { id: "wechat", to: "/wechat/metrics", label: "微信指标", icon: BarChart3 },
-  { id: "wechat", to: "/wechat/orders", label: "微信订单", icon: ShoppingCart },
-  { id: "wechat", to: "/wechat/costs", label: "微信成本", icon: Coins },
+  { id: "wechat_overview", to: "/wechat", label: "微信总览", icon: LayoutDashboard },
+  { id: "wechat_import", to: "/wechat/import", label: "微信导入", icon: Upload },
+  { id: "wechat_metrics", to: "/wechat/metrics", label: "微信指标", icon: BarChart3 },
+  { id: "wechat_orders", to: "/wechat/orders", label: "微信订单", icon: ShoppingCart },
+  { id: "wechat_costs", to: "/wechat/costs", label: "微信成本", icon: Coins },
   { id: "ai_wecom", to: "/ai-wecom", label: "AI & 企微", icon: Bot },
 ]
 

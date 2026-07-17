@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 
 import tmall_services
-from auth import authorize_store, accessible_stores, get_current_user, require_page
+from auth import authorize_store, accessible_stores, require_page
 from store_manager import list_store_names
 
 router = APIRouter()
@@ -16,7 +16,7 @@ def import_tmall_data(
     import_date: Optional[datetime.date] = Form(None),
     promo_file: Optional[UploadFile] = File(None),
     order_file: Optional[UploadFile] = File(None),
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_page("tmall_import")),
 ):
     authorize_store(user, store_name)
     if not promo_file and not order_file:
@@ -38,7 +38,7 @@ def analysis(
     store_name: str = Query(...),
     start_date: datetime.date = Query(...),
     end_date: datetime.date = Query(...),
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_page("tmall_metrics")),
 ):
     authorize_store(user, store_name)
     return tmall_services.load_tmall_analysis(store_name, start_date, end_date)
@@ -49,7 +49,7 @@ def trend(
     store_name: str = Query(...),
     start_date: datetime.date = Query(...),
     end_date: datetime.date = Query(...),
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_page("tmall_metrics")),
 ):
     authorize_store(user, store_name)
     return tmall_services.load_tmall_trend(store_name, start_date, end_date)
@@ -60,7 +60,7 @@ def dashboard_summary(
     start_date: datetime.date = Query(...),
     end_date: datetime.date = Query(...),
     store_names: Optional[List[str]] = Query(None),
-    user: dict = Depends(require_page("tmall")),
+    user: dict = Depends(require_page("tmall_overview")),
 ):
     allowed = accessible_stores(user, list_store_names("tmall"))
     if store_names:
@@ -74,7 +74,7 @@ def dashboard_summary(
 def list_orders(
     store_name: str = Query(...),
     date: datetime.date = Query(...),
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_page("tmall_orders")),
 ):
     authorize_store(user, store_name)
     return tmall_services.get_tmall_orders(store_name, date)
@@ -83,7 +83,7 @@ def list_orders(
 @router.get("/records", response_model=List[Dict[str, Any]])
 def list_records(
     store_name: Optional[str] = None,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_page("tmall_import")),
 ):
     if user.get("role") == "master":
         return tmall_services.get_tmall_records(store_name)
@@ -96,7 +96,7 @@ def list_records(
 def delete_record(
     store_name: str,
     date: datetime.date,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_page("tmall_import")),
 ):
     authorize_store(user, store_name)
     return tmall_services.delete_tmall_record(store_name, date)

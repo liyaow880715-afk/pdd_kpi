@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 
 import services
-from auth import authorize_store, get_current_user
+from auth import authorize_store, require_page
 
 router = APIRouter()
 
@@ -15,7 +15,7 @@ def import_daily_data(
     import_date: datetime.date = Form(...),
     promo_file: Optional[UploadFile] = File(None),
     order_file: Optional[UploadFile] = File(None),
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_page("import")),
 ):
     authorize_store(user, store_name)
     if not promo_file and not order_file:
@@ -35,7 +35,7 @@ def import_daily_data(
 @router.get("/records", response_model=List[Dict[str, Any]])
 def list_records(
     store_name: Optional[str] = None,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_page("import")),
 ):
     records = services.get_records(store_name)
     allowed_names = set(user.get("allowed_stores") or [])
@@ -48,7 +48,7 @@ def list_records(
 def delete_record(
     store_name: str,
     date: datetime.date,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_page("import")),
 ):
     authorize_store(user, store_name)
     return services.delete_record(store_name, date)

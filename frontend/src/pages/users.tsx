@@ -30,22 +30,31 @@ const pageGroups = [
   {
     label: "抖音",
     options: [
-      { id: "douyin", label: "抖音" },
-      { id: "douyin_costs", label: "抖音成本" },
+      { id: "douyin_overview", label: "总览" },
+      { id: "douyin_import", label: "导入" },
+      { id: "douyin_metrics", label: "指标" },
+      { id: "douyin_orders", label: "订单" },
+      { id: "douyin_costs", label: "成本" },
     ],
   },
   {
     label: "天猫",
     options: [
-      { id: "tmall", label: "天猫" },
-      { id: "tmall_costs", label: "天猫成本" },
+      { id: "tmall_overview", label: "总览" },
+      { id: "tmall_import", label: "导入" },
+      { id: "tmall_metrics", label: "指标" },
+      { id: "tmall_orders", label: "订单" },
+      { id: "tmall_costs", label: "成本" },
     ],
   },
   {
     label: "微信小店",
     options: [
-      { id: "wechat", label: "微信" },
-      { id: "wechat_costs", label: "微信成本" },
+      { id: "wechat_overview", label: "总览" },
+      { id: "wechat_import", label: "导入" },
+      { id: "wechat_metrics", label: "指标" },
+      { id: "wechat_orders", label: "订单" },
+      { id: "wechat_costs", label: "成本" },
     ],
   },
   {

@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 
 import wechat_services
-from auth import authorize_store, accessible_stores, get_current_user, require_page
+from auth import authorize_store, accessible_stores, require_page
 from store_manager import list_store_names
 
 router = APIRouter()
@@ -15,7 +15,7 @@ def import_wechat_data(
     store_name: str = Form(...),
     import_date: Optional[datetime.date] = Form(None),
     order_file: Optional[UploadFile] = File(None),
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_page("wechat_import")),
 ):
     authorize_store(user, store_name)
     if not order_file:
@@ -34,7 +34,7 @@ def analysis(
     store_name: str = Query(...),
     start_date: datetime.date = Query(...),
     end_date: datetime.date = Query(...),
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_page("wechat_metrics")),
 ):
     authorize_store(user, store_name)
     return wechat_services.load_wechat_analysis(store_name, start_date, end_date)
@@ -45,7 +45,7 @@ def trend(
     store_name: str = Query(...),
     start_date: datetime.date = Query(...),
     end_date: datetime.date = Query(...),
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_page("wechat_metrics")),
 ):
     authorize_store(user, store_name)
     return wechat_services.load_wechat_trend(store_name, start_date, end_date)
@@ -56,7 +56,7 @@ def dashboard_summary(
     start_date: datetime.date = Query(...),
     end_date: datetime.date = Query(...),
     store_names: Optional[List[str]] = Query(None),
-    user: dict = Depends(require_page("wechat")),
+    user: dict = Depends(require_page("wechat_overview")),
 ):
     allowed = accessible_stores(user, list_store_names("wechat"))
     if store_names:
@@ -70,7 +70,7 @@ def dashboard_summary(
 def list_orders(
     store_name: str = Query(...),
     date: datetime.date = Query(...),
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_page("wechat_orders")),
 ):
     authorize_store(user, store_name)
     return wechat_services.get_wechat_orders(store_name, date)
@@ -79,7 +79,7 @@ def list_orders(
 @router.get("/records", response_model=List[Dict[str, Any]])
 def list_records(
     store_name: Optional[str] = None,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_page("wechat_import")),
 ):
     if user.get("role") == "master":
         return wechat_services.get_wechat_records(store_name)
@@ -92,7 +92,7 @@ def list_records(
 def delete_record(
     store_name: str,
     date: datetime.date,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_page("wechat_import")),
 ):
     authorize_store(user, store_name)
     return wechat_services.delete_wechat_record(store_name, date)
@@ -103,7 +103,7 @@ def kol_stats(
     store_name: str = Query(...),
     start_date: datetime.date = Query(...),
     end_date: datetime.date = Query(...),
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_page("wechat_overview")),
 ):
     authorize_store(user, store_name)
     return wechat_services.get_kol_stats(store_name, start_date, end_date)
