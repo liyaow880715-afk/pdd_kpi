@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { BrowserRouter, Routes, Route, NavLink, useLocation, useNavigate } from "react-router-dom"
 import {
   LayoutDashboard,
@@ -15,9 +15,13 @@ import {
   Users,
   Settings,
   RefreshCw,
+  User,
+  ChevronUp,
+  Sun,
+  Moon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { ThemeToggle } from "@/components/theme-toggle"
+import { useTheme } from "@/components/theme-provider"
 import { AuthGuard } from "@/components/auth-guard"
 import { canAccessPage, getCurrentUser, isMaster, logout } from "@/api/auth"
 import { updateFromGithub } from "@/api/client"
@@ -64,7 +68,6 @@ const pddNavItems: NavItem[] = [
   { id: "costs", to: "/costs", label: "成本", icon: Coins },
   { id: "ai", to: "/ai", label: "AI", icon: Bot },
   { id: "wecom", to: "/wecom", label: "企微", icon: MessageCircle },
-  { id: "users", to: "/users", label: "用户", icon: Users },
 ]
 
 const douyinNavItems: NavItem[] = [
@@ -75,7 +78,6 @@ const douyinNavItems: NavItem[] = [
   { id: "douyin", to: "/douyin/costs", label: "抖音成本", icon: Coins },
   { id: "douyin", to: "/douyin/ai", label: "抖音 AI", icon: Bot },
   { id: "douyin", to: "/douyin/wecom", label: "抖音企微", icon: MessageCircle },
-  { id: "users", to: "/users", label: "用户", icon: Users },
 ]
 
 const tmallNavItems: NavItem[] = [
@@ -86,7 +88,6 @@ const tmallNavItems: NavItem[] = [
   { id: "tmall", to: "/tmall/costs", label: "天猫成本", icon: Coins },
   { id: "tmall_ai", to: "/tmall/ai", label: "天猫 AI", icon: Bot },
   { id: "tmall_wecom", to: "/tmall/wecom", label: "天猫企微", icon: MessageCircle },
-  { id: "users", to: "/users", label: "用户", icon: Users },
 ]
 
 const platformTabs: { key: Platform; label: string; defaultTo: string }[] = [
@@ -128,6 +129,140 @@ function PlatformTabs({
           )
         })}
       </div>
+    </div>
+  )
+}
+
+function UserMenu({
+  user,
+  showMaster,
+  onClose,
+  updating,
+  updateMsg,
+  onUpdate,
+}: {
+  user: ReturnType<typeof getCurrentUser>
+  showMaster: boolean
+  onClose?: () => void
+  updating: boolean
+  updateMsg: string
+  onUpdate: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const { theme, setTheme } = useTheme()
+
+  useEffect(() => {
+    if (!open) return
+    const handle = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handle)
+    return () => document.removeEventListener("mousedown", handle)
+  }, [open])
+
+  const itemClass =
+    "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+
+  return (
+    <div className="px-2">
+      <div className="flex items-center justify-between">
+        <div className="text-sm">
+          <div className="font-medium">{user?.username || "未知用户"}</div>
+          <div className="text-xs text-muted-foreground">
+            {user?.role === "master" ? "主账号" : "子账号"}
+          </div>
+        </div>
+        <div className="relative" ref={ref}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1 text-muted-foreground"
+            onClick={() => setOpen(!open)}
+          >
+            <User className="h-4 w-4" />
+            <ChevronUp className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} />
+          </Button>
+          {open && (
+            <div className="absolute bottom-full right-0 mb-2 w-44 rounded-md border bg-popover p-1 shadow-lg z-50">
+              {(showMaster || canAccessPage("users")) && (
+                <NavLink
+                  to="/users"
+                  onClick={() => {
+                    setOpen(false)
+                    onClose?.()
+                  }}
+                  className={itemClass}
+                >
+                  <Users className="h-4 w-4" />
+                  用户管理
+                </NavLink>
+              )}
+              {(showMaster || canAccessPage("stores")) && (
+                <NavLink
+                  to="/stores"
+                  onClick={() => {
+                    setOpen(false)
+                    onClose?.()
+                  }}
+                  className={itemClass}
+                >
+                  <Store className="h-4 w-4" />
+                  店铺
+                </NavLink>
+              )}
+              {showMaster && (
+                <button
+                  onClick={() => {
+                    setOpen(false)
+                    onUpdate()
+                  }}
+                  disabled={updating}
+                  className={`${itemClass} ${updating ? "opacity-60" : ""}`}
+                >
+                  <RefreshCw className={`h-4 w-4 ${updating ? "animate-spin" : ""}`} />
+                  {updating ? "更新中" : "系统更新"}
+                </button>
+              )}
+              <NavLink
+                to="/change-password"
+                onClick={() => {
+                  setOpen(false)
+                  onClose?.()
+                }}
+                className={itemClass}
+              >
+                <Settings className="h-4 w-4" />
+                修改密码
+              </NavLink>
+              <button
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                className={itemClass}
+              >
+                {theme === "dark" ? (
+                  <Sun className="h-4 w-4" />
+                ) : (
+                  <Moon className="h-4 w-4" />
+                )}
+                切换主题
+              </button>
+              <button
+                onClick={() => {
+                  setOpen(false)
+                  logout()
+                }}
+                className={itemClass}
+              >
+                <LogOut className="h-4 w-4" />
+                退出登录
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+      {updateMsg && <div className="pt-2 text-xs text-destructive">{updateMsg}</div>}
     </div>
   )
 }
@@ -198,40 +333,15 @@ function Sidebar({
           </NavLink>
         ))}
       </nav>
-      <div className="mt-auto pt-4 border-t space-y-2">
-        <div className="px-2 text-sm">
-          <div className="font-medium">{user?.username || "未知用户"}</div>
-          <div className="text-xs text-muted-foreground">
-            {user?.role === "master" ? "主账号" : "子账号"}
-          </div>
-        </div>
-        <div className="flex items-center gap-1">
-          {(showMaster || canAccessPage("stores")) && (
-            <NavLink to="/stores" onClick={onClose}>
-              <Button variant="ghost" size="sm" className="text-muted-foreground">
-                <Store className="mr-1 h-4 w-4" />
-                店铺
-              </Button>
-            </NavLink>
-          )}
-          {showMaster && (
-            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={handleUpdate} disabled={updating}>
-              <RefreshCw className={`mr-1 h-4 w-4 ${updating ? "animate-spin" : ""}`} />
-              {updating ? "更新中" : "更新"}
-            </Button>
-          )}
-          <div className="flex-1" />
-          <NavLink to="/change-password">
-            <Button variant="ghost" size="icon" className="text-muted-foreground">
-              <Settings className="h-4 w-4" />
-            </Button>
-          </NavLink>
-          <ThemeToggle />
-          <Button variant="ghost" size="icon" onClick={logout}>
-            <LogOut className="h-4 w-4 text-muted-foreground" />
-          </Button>
-        </div>
-        {updateMsg && <div className="px-2 text-xs text-destructive">{updateMsg}</div>}
+      <div className="mt-auto pt-4 border-t">
+        <UserMenu
+          user={user}
+          showMaster={showMaster}
+          onClose={onClose}
+          updating={updating}
+          updateMsg={updateMsg}
+          onUpdate={handleUpdate}
+        />
       </div>
     </aside>
   )
