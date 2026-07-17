@@ -1,6 +1,6 @@
 # 多平台电商 BI 看板
 
-拼多多 / 抖音 / 天猫（占位） 的推广与订单数据 BI 分析工具。
+拼多多 / 抖音 / 天猫 / 微信小店 的推广与订单数据 BI 分析工具。
 
 后端使用 **Python + FastAPI + pandas**，前端使用 **Vite + React + TypeScript + Tailwind CSS**，通过浏览器访问；支持多店铺、多账号权限、AI 分析结论与企业微信日报推送。
 
@@ -8,17 +8,19 @@
 
 ## 功能特性
 
-- 📊 **多平台切换**：拼多多、抖音、天猫（占位）独立数据与菜单
+- 📊 **多平台切换**：拼多多、抖音、天猫、微信小店独立数据与菜单，侧边栏下拉切换
 - 🏪 **多店铺隔离**：每个平台下可创建多个店铺，数据分开存储、分开筛选
-- 📤 **数据导入**：拖拽上传推广 Excel / 订单 CSV，支持单日文件与全数据文件自动按日期拆分
+- 📤 **数据导入**：拖拽上传推广 Excel / 订单 CSV/Excel，支持单日文件与全数据文件自动按日期拆分；导入订单时自动刷新新出现的商家/SKU 编码到成本配置
 - 📈 **核心 KPI 看板**：
   - 拼多多：推广花费、GMV、真实 ROI、退款率、点击率、商家实收、自然流量占比等
   - 抖音：消耗、成交金额、净成交金额、**实际收入**（订单应付金额 + 平台实际承担优惠金额）、ROI、点击率、转化率等
+  - 天猫：成交金额、退款、ROI、点击率等
+  - 微信小店：订单实际收款、退款、技术服务费、带货费用（佣金）、净成交金额等
 - 🛒 **商品级 / 规格级明细**：排行、对比、趋势图、导出 CSV
-- 💰 **成本管理**：按「商家编码」维护商品成本/物流成本，支持刷新编码、未映射商品绑定、导入导出、待维护导出
-- 🤖 **AI 智能洞察**：支持 Kimi / OpenAI / 任意兼容 API，自动生成平台专属分析结论
+- 💰 **成本管理**：按「商家编码/SKU 编码」维护商品成本/物流成本，支持刷新编码、未映射商品绑定、导入导出、待维护导出；导航栏「成本」旁实时显示未维护数量徽标
+- 🤖 **AI 智能洞察**：统一 AI & 企微页面，支持 Kimi / OpenAI / 任意兼容 API，自动生成平台专属分析结论
 - 📲 **企业微信日报**：按店铺汇总后推送到指定机器人
-- 👥 **账号权限**：主账号 + 子账号，支持按页面与店铺授权
+- 👥 **账号权限**：主账号 + 子账号，按四大平台分组，每平台细分为总览/导入/指标/订单/成本，AI & 企微为通用权限
 - 🚀 **自动部署**：GitHub Actions 推送 `main`/`master` 后自动构建前端并部署到服务器
 
 ---
@@ -58,7 +60,9 @@ npm install
 npm run dev
 ```
 
-浏览器访问 `http://localhost:5173`，默认账号 `admin` / `admin123`。
+浏览器访问 `http://localhost:5173`。
+
+> 首次部署时请务必设置 `ADMIN_PASSWORD` 环境变量，否则后端启动会报错；已有 admin 用户的存量部署则不再强制要求。
 
 ---
 
@@ -66,24 +70,27 @@ npm run dev
 
 项目已配置 GitHub Actions（`.github/workflows/deploy.yml`），推送 `main`/`master` 分支后自动：
 
-1. 使用 Node.js 构建前端
-2. 将 `frontend/dist/` 上传到服务器
-3. 服务器执行 `git pull`、安装依赖、清理 `__pycache__`、重启 `pdd_kpi.service`、重载 Nginx
+1. 读取仓库中的 `.github_deploy_key` 作为 SSH 私钥
+2. 连接服务器 `122.152.201.146`（用户 `ubuntu`）执行 `git pull`
+3. 安装 Python 依赖、清理 `__pycache__`
+4. 前端 `npm ci && npm run build`
+5. 将 `frontend/dist/` 同步到 `/var/www/pdd_kpi/`
+6. 重启 `pdd_kpi.service`、重载 Nginx
 
-依赖 Secrets：`SERVER_HOST`、`SERVER_USER`、`SERVER_SSH_KEY`。
+生产环境建议通过 Systemd `EnvironmentFile` 注入 `JWT_SECRET_KEY` 等敏感配置，避免直接写入服务文件或仓库。
 
 ---
 
 ## 使用步骤
 
-1. 登录后，顶部导航切换平台（拼多多 / 抖音）
-2. 进入「导入」页面，选择店铺、上传推广 Excel 与订单 CSV
+1. 登录后，在左侧边栏顶部的下拉框切换平台（拼多多 / 抖音 / 天猫 / 微信小店）
+2. 进入「导入」页面，选择店铺、上传推广与订单数据；若订单里出现新的商家/SKU 编码，系统会自动刷新到成本配置
 3. 日期留空时，程序会自动拆分文件内的所有日期
 4. 进入「总览」查看汇总 KPI 与趋势
 5. 进入「指标」查看单店详情、商品明细、规格分析
-6. 进入「成本」维护商家编码对应的商品成本 / 物流成本
-7. 进入「AI」配置 API Key 并生成分析结论
-8. 进入「企微」配置机器人并发送日报
+6. 进入「成本」维护商家/SKU 编码对应的商品成本 / 物流成本；若存在未维护项，导航栏「成本」会显示红色数字徽标
+7. 进入「AI & 企微」配置 API Key、生成分析结论、配置机器人并发送日报
+8. 主账号可在「用户管理」中按平台和页面为子账号授权
 
 ---
 
@@ -147,11 +154,33 @@ npm run dev
 
 > 抖音实际收入 = 订单应付金额 + 平台实际承担优惠金额
 
+### 微信小店订单数据
+
+支持 `.xls` / `.xlsx`，关键列：
+
+| 关键列 | 说明 |
+|---|---|
+| 订单号 | 订单唯一标识 |
+| 商品名称 | 商品名称 |
+| SKU编码(自定义) / 自定义SKU编码 | 成本管理用自定义 SKU 编码 |
+| SKU编码(平台) / 平台SKU编码 | 平台 SKU 编码 |
+| 商品ID / SPUID | 平台商品 ID |
+| 订单下单时间 | 用于拆分日期 |
+| 订单状态 | 用于判定有效/取消订单 |
+| 商品数量 | 购买数量 |
+| 订单实际支付金额 | 买家实际支付 |
+| 订单实际收款金额 | 商家实际收款 |
+| 商品已退款金额 | 退款金额 |
+| 技术服务费 | 平台技术服务费 |
+| 带货费用 | 带货佣金 |
+
+> 微信小店净成交金额 = 订单实际收款金额 - 商品已退款金额 - 技术服务费 - 带货费用（佣金）
+
 ---
 
 ## AI 配置
 
-在「AI」页面配置：
+在「AI & 企微」页面配置：
 
 - **API Key**：Kimi / OpenAI / 兼容 API Key
 - **Base URL**：
@@ -169,12 +198,13 @@ npm run dev
 
 ## 成本管理
 
-成本按「商家编码」维护，全店铺通用：
+成本按「商家编码 / SKU 编码」维护：
 
-1. 点击「刷新编码」从订单中自动提取商家编码
+1. 导入订单时，系统会自动把订单中新出现的编码写入成本配置（对应旧版「刷新编码」按钮功能）
 2. 在「待维护商家编码」中填写商品成本 / 物流成本，点击「保存」
-3. 若订单中没有商家编码，可在「未映射商家编码的商品」中把 `product_id` / 规格绑定到商家编码
-4. 支持导入导出 CSV，也可单独导出「待维护商家编码」清单
+3. 若订单中没有编码，可在「未映射编码的商品」中把 `product_id` / 规格绑定到对应编码
+4. 支持导入导出 CSV，也可单独导出「待维护编码」清单
+5. 导航栏「成本」旁会显示红色数字徽标，提示当前平台还有多少未维护/未映射项
 
 成本会按 `有效订单数` 计算总成本，并结合 `有效 GMV` 计算毛利、毛利率、盈亏、盈亏率。
 
@@ -186,10 +216,13 @@ npm run dev
 
 - `data/processed/{店铺}/`：拼多多商品指标、样式指标、订单明细
 - `data/processed_douyin/{店铺}/`：抖音商品指标、订单明细
-- `data/costs.json`：拼多多成本配置
-- `data/douyin_costs.json`：抖音成本配置
-- `data/config.json`：AI 配置、用户认证等
+- `data/processed_tmall/{店铺}/`：天猫商品指标、订单明细
+- `data/processed_wechat/{店铺}/`：微信小店商品指标、订单明细
+- `data/costs.json`：拼多多/抖音/天猫/微信小店成本配置
+- `data/config.json`：AI 配置
 - `data/stores.json`：店铺注册信息（含 platform 字段）
+- `data/users.json`：用户信息、权限、JWT 数据
+- `data/.jwt_secret`：JWT Secret 持久化文件（可被 `JWT_SECRET_KEY` 环境变量覆盖）
 
 ---
 
@@ -200,6 +233,7 @@ pdd_bi_dashboard/
 ├── api.py                      # FastAPI 主入口
 ├── api_client.py               # LLM API 调用客户端
 ├── app.py / dashboard.py       # 旧版 Streamlit 入口（保留兼容）
+├── auth.py                     # JWT 认证、权限中间件、密码策略
 ├── data_loader.py              # 拼多多文件读取
 ├── data_processor.py           # 拼多多推广与订单匹配
 ├── metrics.py                  # 拼多多 KPI 计算
@@ -208,12 +242,15 @@ pdd_bi_dashboard/
 ├── ai_analyzer.py              # 拼多多 AI 提示词
 ├── report_builder.py / wecom.py # 拼多多企微日报
 ├── store_manager.py            # 店铺注册与权限
-├── auth.py                     # JWT 认证与权限中间件
+├── services.py                 # 拼多多业务服务层
+├── generic_report_builder.py   # 抖音/天猫/微信通用日报生成器
 ├── routers/                    # FastAPI 路由
-│   ├── auth.py / users.py / stores.py
+│   ├── auth.py / users.py / stores.py / system.py
 │   ├── imports.py / orders.py / metrics.py / costs.py
 │   ├── ai.py / wecom.py / exports.py / dashboard.py
-│   └── douyin.py / douyin_costs.py / douyin_ai.py / douyin_wecom.py
+│   ├── douyin.py / douyin_costs.py / douyin_ai.py / douyin_wecom.py
+│   ├── tmall.py / tmall_costs.py / tmall_ai.py / tmall_wecom.py
+│   └── wechat.py / wechat_costs.py / wechat_ai.py / wechat_wecom.py
 ├── douyin_loader.py            # 抖音文件读取
 ├── douyin_metrics.py           # 抖音 KPI 计算
 ├── douyin_cost_manager.py      # 抖音成本管理
@@ -221,10 +258,22 @@ pdd_bi_dashboard/
 ├── douyin_storage.py           # 抖音数据持久化
 ├── douyin_ai_analyzer.py       # 抖音 AI 提示词
 ├── douyin_report_builder.py    # 抖音企微日报
+├── tmall_loader.py             # 天猫文件读取
+├── tmall_metrics.py            # 天猫 KPI 计算
+├── tmall_cost_manager.py       # 天猫成本管理
+├── tmall_services.py           # 天猫业务服务层
+├── tmall_storage.py            # 天猫数据持久化
+├── tmall_ai_analyzer.py        # 天猫 AI 提示词
+├── wechat_loader.py            # 微信小店文件读取
+├── wechat_metrics.py           # 微信小店 KPI 计算
+├── wechat_cost_manager.py      # 微信小店成本管理
+├── wechat_services.py          # 微信小店业务服务层
+├── wechat_storage.py           # 微信小店数据持久化
+├── wechat_ai_analyzer.py       # 微信小店 AI 提示词
 ├── frontend/                   # React 前端
 │   ├── src/
-│   │   ├── App.tsx
-│   │   ├── pages/              # 拼多多 / 抖音各页面
+│   │   ├── App.tsx             # 路由、侧边栏、平台切换、权限守卫
+│   │   ├── pages/              # 拼多多 / 抖音 / 天猫 / 微信各页面
 │   │   ├── components/
 │   │   └── api/client.ts
 │   └── package.json
@@ -239,9 +288,14 @@ pdd_bi_dashboard/
 ## 注意事项
 
 - 首次运行会创建 `venv/` 和 `data/` 目录
+- 新部署必须设置 `ADMIN_PASSWORD` 环境变量；存量部署若已存在 `admin` 用户则不受此限制
+- `JWT_SECRET_KEY` 优先从环境变量读取，否则持久化到 `data/.jwt_secret`；生产环境建议通过 Systemd `EnvironmentFile` 外部注入
+- 上传文件默认限制 50MB，统一走上传 helper 处理
+- 生产环境异常信息不再直接返回客户端，可通过 `DEBUG=true` 开启详细错误
+- 店铺写操作、AI/企微配置写操作、全局成本写操作均限制为主账号
 - 拼多多真实 ROI = 有效商家实收 / 推广花费，「有效」指剔除退款和取消订单
 - 抖音实际收入 = 订单应付金额 + 平台实际承担优惠金额
+- 微信小店净成交金额 = 订单实际收款金额 - 商品已退款金额 - 技术服务费 - 带货费用（佣金）
 - 推广数据中的「总计/汇总/全部」行会自动过滤
 - 多店铺数据按「店铺名称」分别存储；店铺注册时选择所属平台
 - 子账号权限在「用户管理」中配置，需勾选对应平台页面与允许店铺
-- 天猫板块当前为占位状态，未接入实际数据功能
