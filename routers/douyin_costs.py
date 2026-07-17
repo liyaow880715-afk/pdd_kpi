@@ -115,7 +115,7 @@ def count_unmapped_products(
         for c in douyin_cost_manager.get_global_costs()
         if c.get("product_cost", 0) <= 0 or c.get("logistics_cost", 0) <= 0
     )
-    return {"count": unmapped + pending}
+    return {"pending": pending, "unmapped": unmapped}
 
 
 @router.post("/map", response_model=Dict[str, Any])

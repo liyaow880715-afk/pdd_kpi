@@ -146,7 +146,7 @@ def count_unmapped_products(_: dict = Depends(require_page("costs"))):
         for c in cost_manager.list_global_cost_rows()
         if c.get("product_cost", 0) <= 0 or c.get("logistics_cost", 0) <= 0
     )
-    return {"count": unmapped + pending}
+    return {"pending": pending, "unmapped": unmapped}
 
 
 @router.post("/global/map", response_model=Dict[str, Any])

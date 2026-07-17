@@ -331,7 +331,7 @@ function Sidebar({
   const showMaster = isMaster()
   const [updating, setUpdating] = useState(false)
   const [updateMsg, setUpdateMsg] = useState("")
-  const [costBadge, setCostBadge] = useState<number | null>(null)
+  const [costBadge, setCostBadge] = useState<{ pending: number; unmapped: number } | null>(null)
   const navItems =
     platform === "douyin" ? douyinNavItems : platform === "tmall" ? tmallNavItems : platform === "wechat" ? wechatNavItems : pddNavItems
   const visibleItems = navItems.filter((item) => (showMaster ? true : canAccessPage(item.id)))
@@ -346,7 +346,7 @@ function Sidebar({
         return
       }
       try {
-        let count = 0
+        let count
         if (platform === "douyin") {
           count = await getDouyinUnmappedCount()
         } else if (platform === "tmall") {
@@ -356,7 +356,11 @@ function Sidebar({
         } else {
           count = await getGlobalUnmappedCount()
         }
-        setCostBadge(count > 0 ? count : null)
+        setCostBadge(
+          count.pending > 0 || count.unmapped > 0
+            ? { pending: count.pending, unmapped: count.unmapped }
+            : null
+        )
       } catch {
         setCostBadge(null)
       }
@@ -424,8 +428,17 @@ function Sidebar({
             <item.icon className="h-4 w-4" />
             <span className="flex-1">{item.label}</span>
             {(item.id === "costs" || item.id.endsWith("_costs")) && costBadge != null && (
-              <span className="ml-auto inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground">
-                {costBadge > 99 ? "99+" : costBadge}
+              <span className="ml-auto flex items-center gap-1">
+                {costBadge.pending > 0 && (
+                  <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground">
+                    {costBadge.pending > 99 ? "99+" : costBadge.pending}
+                  </span>
+                )}
+                {costBadge.unmapped > 0 && (
+                  <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-green-500 px-1.5 text-[10px] font-bold text-white">
+                    {costBadge.unmapped > 99 ? "99+" : costBadge.unmapped}
+                  </span>
+                )}
               </span>
             )}
           </NavLink>

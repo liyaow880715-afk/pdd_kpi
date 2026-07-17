@@ -210,8 +210,8 @@ export async function getUnmappedProducts() {
 }
 
 export async function getGlobalUnmappedCount() {
-  const res = await api.get<{ count: number }>("/costs/global/unmapped/count")
-  return res.data.count
+  const res = await api.get<{ pending: number; unmapped: number }>("/costs/global/unmapped/count")
+  return res.data
 }
 
 export async function mapProductToMerchantCode(productId: string, merchantCode: string, styleId?: string, productName?: string) {
@@ -503,8 +503,8 @@ export async function getDouyinUnmappedCount(startDate?: string, endDate?: strin
   if (startDate) params.start_date = startDate
   if (endDate) params.end_date = endDate
   if (storeName) params.store_name = storeName
-  const res = await api.get<{ count: number }>("/douyin/costs/unmapped/count", { params })
-  return res.data.count
+  const res = await api.get<{ pending: number; unmapped: number }>("/douyin/costs/unmapped/count", { params })
+  return res.data
 }
 
 export async function mapDouyinProductToMerchantCode(
@@ -651,8 +651,8 @@ export async function getTmallUnmappedCount(startDate?: string, endDate?: string
   if (startDate) params.start_date = startDate
   if (endDate) params.end_date = endDate
   if (storeName) params.store_name = storeName
-  const res = await api.get<{ count: number }>("/tmall/costs/unmapped/count", { params })
-  return res.data.count
+  const res = await api.get<{ pending: number; unmapped: number }>("/tmall/costs/unmapped/count", { params })
+  return res.data
 }
 
 export async function mapTmallProductToMerchantCode(
@@ -877,8 +877,8 @@ export async function getWechatUnmappedCount(startDate?: string, endDate?: strin
   if (startDate) params.start_date = startDate
   if (endDate) params.end_date = endDate
   if (storeName) params.store_name = storeName
-  const res = await api.get<{ count: number }>("/wechat/costs/unmapped/count", { params })
-  return res.data.count
+  const res = await api.get<{ pending: number; unmapped: number }>("/wechat/costs/unmapped/count", { params })
+  return res.data
 }
 
 export async function mapWechatProduct(skuCode: string, productName?: string) {
