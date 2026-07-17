@@ -20,6 +20,7 @@ import {
   Moon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Select } from "@/components/ui/select"
 import { useTheme } from "@/components/theme-provider"
 import { AuthGuard } from "@/components/auth-guard"
 import { canAccessPage, getCurrentUser, isMaster, logout } from "@/api/auth"
@@ -99,7 +100,7 @@ const platformTabs: { key: Platform; label: string; defaultTo: string }[] = [
   { key: "pdd", label: "拼多多", defaultTo: "/" },
   { key: "douyin", label: "抖音", defaultTo: "/douyin" },
   { key: "tmall", label: "天猫", defaultTo: "/tmall" },
-  { key: "wechat", label: "微信", defaultTo: "/wechat" },
+  { key: "wechat", label: "微信小店", defaultTo: "/wechat" },
 ]
 
 function detectPlatform(pathname: string): Platform {
@@ -118,24 +119,16 @@ function PlatformTabs({
 }) {
   return (
     <div className="px-2 pb-3">
-      <div className="flex rounded-lg bg-muted p-1 gap-1">
-        {platformTabs.map((tab) => {
-          const active = platform === tab.key
-          return (
-            <button
-              key={tab.key}
-              onClick={() => onChange(tab.key)}
-              className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
-                active
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-              }`}
-            >
-              {tab.label}
-            </button>
-          )
-        })}
-      </div>
+      <Select
+        value={platform}
+        onChange={(e) => onChange(e.target.value as Platform)}
+      >
+        {platformTabs.map((tab) => (
+          <option key={tab.key} value={tab.key}>
+            {tab.label}
+          </option>
+        ))}
+      </Select>
     </div>
   )
 }
