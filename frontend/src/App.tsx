@@ -289,7 +289,13 @@ function Sidebar({
     setUpdateMsg("")
     try {
       const res = await updateFromGithub()
-      setUpdateMsg(res.success ? "更新成功，服务已重启" : `更新失败：${JSON.stringify(res.steps)}`)
+      if (res.up_to_date) {
+        setUpdateMsg("当前已是最新版本，无需更新")
+      } else if (res.success) {
+        setUpdateMsg("更新成功，服务已重启")
+      } else {
+        setUpdateMsg(`更新失败：${JSON.stringify(res.steps)}`)
+      }
     } catch (err: any) {
       setUpdateMsg(err.message)
     } finally {

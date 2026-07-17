@@ -47,14 +47,45 @@ def _run(cmd: list[str], cwd: str = "/home/ubuntu/pdd_kpi") -> Dict[str, Any]:
         return {"cmd": " ".join(cmd), "returncode": -1, "stdout": "", "stderr": str(e)}
 
 
+def _git_revision(cmd: list[str], cwd: str, env: Dict[str, str]) -> str:
+    result = subprocess.run(
+        cmd,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+        env=env,
+    )
+    return result.stdout.strip().split()[0] if result.returncode == 0 and result.stdout.strip() else ""
+
+
 @router.post("/update", response_model=Dict[str, Any])
 def update_from_github(_: dict = Depends(require_master)):
-    """从 GitHub 拉取最新代码并重启服务"""
+    """从 GitHub 拉取最新代码并重启服务；若版本已一致则跳过重启"""
     project_dir = "/home/ubuntu/pdd_kpi"
     steps = []
 
-    # 1. git pull（使用仓库里的 deploy key 鉴权）
     git_path = shutil.which("git") or "git"
+    key_path = os.path.join(project_dir, ".github_deploy_key")
+    env_ssh = f"ssh -i {key_path} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+    env = _ensure_path(os.environ.copy())
+    env["GIT_SSH_COMMAND"] = env_ssh
+
+    # 0. 版本核验：本地 HEAD vs 远端 master HEAD
+    local_head = _git_revision([git_path, "rev-parse", "HEAD"], project_dir, env)
+    remote_head = _git_revision([git_path, "ls-remote", "origin", "master"], project_dir, env)
+    if local_head and remote_head and local_head == remote_head:
+        return {
+            "success": True,
+            "up_to_date": True,
+            "message": "当前已是最新版本，无需更新",
+            "local": local_head,
+            "remote": remote_head,
+            "steps": [],
+        }
+
+    # 1. git pull（使用仓库里的 deploy key 鉴权）
     key_path = os.path.join(project_dir, ".github_deploy_key")
     env_ssh = f"ssh -i {key_path} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
     env = _ensure_path(os.environ.copy())

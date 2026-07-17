@@ -94,7 +94,7 @@ export async function getHealth() {
 
 export async function updateFromGithub() {
   const res = await api.post("/system/update")
-  return res.data as { success: boolean; steps: any[] }
+  return res.data as { success: boolean; up_to_date?: boolean; message?: string; local?: string; remote?: string; steps: any[] }
 }
 
 export async function getStores(platform?: string) {
