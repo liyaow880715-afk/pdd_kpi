@@ -174,15 +174,14 @@ def _is_strong_password(password: str) -> bool:
 def _get_admin_initial_password() -> str:
     """
     返回 admin 初始密码。
-    - 若 admin 已存在且已修改过密码，允许不设置 ADMIN_PASSWORD。
-    - 若 admin 不存在，则必须从环境变量读取。
+    - 若 admin 已存在（无论是否修改过密码），允许不设置 ADMIN_PASSWORD，避免已有部署无法启动。
+    - 若 admin 不存在，则必须从环境变量读取强密码进行初始化。
     """
     env_password = os.getenv("ADMIN_PASSWORD")
     users = load_users()
-    admin = users.get("admin")
-    admin_initialized = admin is not None and admin.get("password_changed")
+    admin_exists = users.get("admin") is not None
 
-    if not admin_initialized and not env_password:
+    if not admin_exists and not env_password:
         raise RuntimeError(
             "ADMIN_PASSWORD 环境变量未设置，请在启动前配置 admin 初始密码。"
         )
