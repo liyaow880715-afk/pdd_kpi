@@ -109,7 +109,13 @@ def count_unmapped_products(
         start_date=start_s,
         end_date=end_s,
     )
-    return {"count": len(df)}
+    unmapped = len(df)
+    pending = sum(
+        1
+        for c in tmall_cost_manager.get_global_costs()
+        if c.get("product_cost", 0) <= 0 or c.get("logistics_cost", 0) <= 0
+    )
+    return {"count": unmapped + pending}
 
 
 @router.post("/map", response_model=Dict[str, Any])

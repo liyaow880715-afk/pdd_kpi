@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
+import cost_manager
 import services
 from auth import authorize_store, get_current_user, require_master, require_page
 from services import bump_data_version
@@ -139,7 +140,13 @@ def list_unmapped_products(_: dict = Depends(require_master)):
 
 @router.get("/global/unmapped/count", response_model=Dict[str, int])
 def count_unmapped_products(_: dict = Depends(require_page("costs"))):
-    return {"count": len(services.get_unmapped_products())}
+    unmapped = len(services.get_unmapped_products())
+    pending = sum(
+        1
+        for c in cost_manager.list_global_cost_rows()
+        if c.get("product_cost", 0) <= 0 or c.get("logistics_cost", 0) <= 0
+    )
+    return {"count": unmapped + pending}
 
 
 @router.post("/global/map", response_model=Dict[str, Any])
