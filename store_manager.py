@@ -142,6 +142,23 @@ def rename_store(store_id: str, new_name: str) -> Optional[dict]:
     return store
 
 
+def update_store_platform(store_id: str, platform: str) -> Optional[dict]:
+    """修改店铺平台类型"""
+    registry = _load_registry()
+    store = registry.get(store_id)
+    if not store:
+        return None
+
+    platform = (platform or "pdd").strip().lower()
+    if platform not in ("pdd", "douyin", "tmall", "wechat"):
+        return None
+
+    store["platform"] = platform
+    store["updated_at"] = datetime.now().isoformat()
+    _save_registry(registry)
+    return store
+
+
 def delete_store(store_id: str) -> bool:
     """删除店铺"""
     registry = _load_registry()

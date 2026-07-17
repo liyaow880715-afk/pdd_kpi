@@ -112,6 +112,11 @@ export async function renameStore(id: string, newName: string) {
   return res.data
 }
 
+export async function updateStorePlatform(id: string, platform: string) {
+  const res = await api.patch<Store>(`/stores/${id}/platform`, { platform })
+  return res.data
+}
+
 export async function deleteStore(id: string) {
   const res = await api.delete(`/stores/${id}`)
   return res.data

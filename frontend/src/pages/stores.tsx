@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { getStores, createStore, renameStore, deleteStore, type Store } from "@/api/client"
+import { getStores, createStore, renameStore, updateStorePlatform, deleteStore, type Store } from "@/api/client"
 
 export function StoresPage() {
   const [stores, setStores] = useState<Store[]>([])
@@ -12,6 +12,7 @@ export function StoresPage() {
   const [newPlatform, setNewPlatform] = useState("pdd")
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState("")
+  const [editPlatform, setEditPlatform] = useState("pdd")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
@@ -53,6 +54,15 @@ export function StoresPage() {
     }
   }
 
+  const handlePlatformChange = async (id: string, platform: string) => {
+    try {
+      await updateStorePlatform(id, platform)
+      fetchStores()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
   const handleDelete = async (id: string) => {
     if (!confirm("确定删除该店铺？")) return
     try {
@@ -87,6 +97,7 @@ export function StoresPage() {
               <option value="pdd">拼多多</option>
               <option value="douyin">抖音</option>
               <option value="tmall">天猫</option>
+              <option value="wechat">微信小店</option>
             </select>
             <Button onClick={handleCreate} disabled={loading}>
               <Plus className="h-4 w-4 mr-1" /> 新增
@@ -124,9 +135,25 @@ export function StoresPage() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <span className="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">
-                      {store.platform === "douyin" ? "抖音" : store.platform === "tmall" ? "天猫" : "拼多多"}
-                    </span>
+                    {editingId === store.id ? (
+                      <select
+                        className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+                        value={editPlatform}
+                        onChange={(e) => {
+                          setEditPlatform(e.target.value)
+                          handlePlatformChange(store.id, e.target.value)
+                        }}
+                      >
+                        <option value="pdd">拼多多</option>
+                        <option value="douyin">抖音</option>
+                        <option value="tmall">天猫</option>
+                        <option value="wechat">微信小店</option>
+                      </select>
+                    ) : (
+                      <span className="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">
+                        {store.platform === "douyin" ? "抖音" : store.platform === "tmall" ? "天猫" : store.platform === "wechat" ? "微信小店" : "拼多多"}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell>{new Date(store.created_at).toLocaleString()}</TableCell>
                   <TableCell className="text-right">
@@ -147,6 +174,7 @@ export function StoresPage() {
                           onClick={() => {
                             setEditingId(store.id)
                             setEditName(store.name)
+                            setEditPlatform(store.platform || "pdd")
                           }}
                         >
                           <Edit2 className="h-4 w-4" />

@@ -55,7 +55,7 @@ from storage import (
     record_exists,
     delete_daily_data,
 )
-from store_manager import add_store, rename_store, delete_store, list_stores
+from store_manager import add_store, rename_store, delete_store, list_stores, update_store_platform
 from config_manager import load_config, save_config, get_config_defaults
 from ai_analyzer import generate_ai_report
 from api_client import test_connection
@@ -164,6 +164,10 @@ def create_store(name: str, platform: str = "pdd") -> Dict[str, Any]:
 
 def rename_store_service(store_id: str, new_name: str) -> Optional[Dict[str, Any]]:
     return rename_store(store_id, new_name)
+
+
+def update_store_platform_service(store_id: str, platform: str) -> Optional[Dict[str, Any]]:
+    return update_store_platform(store_id, platform)
 
 
 def delete_store_service(store_id: str) -> bool:

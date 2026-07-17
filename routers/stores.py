@@ -18,6 +18,10 @@ class RenameStoreRequest(BaseModel):
     new_name: str
 
 
+class UpdatePlatformRequest(BaseModel):
+    platform: str
+
+
 @router.get("", response_model=List[Dict[str, Any]])
 def list_stores(
     platform: Optional[str] = Query(None),
@@ -38,6 +42,14 @@ def rename_store(store_id: str, req: RenameStoreRequest, _: dict = Depends(get_c
     store = services.rename_store_service(store_id, req.new_name)
     if not store:
         raise HTTPException(status_code=404, detail="店铺不存在")
+    return store
+
+
+@router.patch("/{store_id}/platform", response_model=Dict[str, Any])
+def update_platform(store_id: str, req: UpdatePlatformRequest, _: dict = Depends(get_current_user)):
+    store = services.update_store_platform_service(store_id, req.platform)
+    if not store:
+        raise HTTPException(status_code=400, detail="店铺不存在或平台类型无效")
     return store
 
 
