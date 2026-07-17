@@ -172,6 +172,7 @@ def read_order_file(file_bytes: bytes, filename: str = "") -> pd.DataFrame:
     df["amount"] = df.get("买家实付金额", 0).apply(_clean_number)
     df["actual_revenue"] = df["amount"]
     df["refund_amount"] = df.get("退款金额", 0).apply(_clean_number)
+    df["compensation_amount"] = df.get("赔付金额", 0).apply(_clean_number)
     df["order_status"] = df.get("订单状态", "").astype(str)
 
     # 时间字段
@@ -183,6 +184,6 @@ def read_order_file(file_bytes: bytes, filename: str = "") -> pd.DataFrame:
 
     return df[[
         "order_id", "product_id", "style_id", "product_name", "spec", "merchant_code",
-        "quantity", "amount", "actual_revenue", "refund_amount",
+        "quantity", "amount", "actual_revenue", "refund_amount", "compensation_amount",
         "order_status", "order_time", "order_date",
     ]]

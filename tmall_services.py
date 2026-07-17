@@ -70,14 +70,15 @@ def _build_order_summary(orders_df: pd.DataFrame) -> pd.DataFrame:
     df["actual_revenue"] = pd.to_numeric(df.get("actual_revenue", 0), errors="coerce").fillna(0)
     df["quantity"] = pd.to_numeric(df.get("quantity", 0), errors="coerce").fillna(0)
     df["refund_amount"] = pd.to_numeric(df.get("refund_amount", 0), errors="coerce").fillna(0)
+    df["compensation_amount"] = pd.to_numeric(df.get("compensation_amount", 0), errors="coerce").fillna(0)
 
     # 净订单：买家有实际付款且订单未关闭/取消
     invalid_status = df["order_status"].astype(str).str.contains("关闭|取消|交易关闭", na=False)
     df["is_valid"] = (df["actual_revenue"] > 0) & (~invalid_status)
     df["is_refund"] = df["refund_amount"] > 0
 
-    # 净成交金额按「实付 - 退款」计算
-    df["net_revenue"] = df["actual_revenue"] - df["refund_amount"]
+    # 净成交金额按「实付 - 退款 - 赔付」计算
+    df["net_revenue"] = df["actual_revenue"] - df["refund_amount"] - df["compensation_amount"]
 
     grouped = (
         df.groupby("product_key")
