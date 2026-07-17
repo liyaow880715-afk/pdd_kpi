@@ -15,8 +15,19 @@ from auth import require_master
 router = APIRouter()
 
 
+def _ensure_path(env: Dict[str, str]) -> Dict[str, str]:
+    """确保 PATH 包含系统命令目录（systemd 服务里可能只有 venv/bin）"""
+    path = env.get("PATH", "")
+    for extra in ["/usr/bin", "/bin", "/usr/sbin", "/sbin"]:
+        if extra not in path:
+            path = f"{path}:{extra}" if path else extra
+    env["PATH"] = path
+    return env
+
+
 def _run(cmd: list[str], cwd: str = "/home/ubuntu/pdd_kpi") -> Dict[str, Any]:
     try:
+        env = _ensure_path(os.environ.copy())
         result = subprocess.run(
             cmd,
             cwd=cwd,
@@ -24,6 +35,7 @@ def _run(cmd: list[str], cwd: str = "/home/ubuntu/pdd_kpi") -> Dict[str, Any]:
             text=True,
             timeout=120,
             check=False,
+            env=env,
         )
         return {
             "cmd": " ".join(cmd),
@@ -45,7 +57,7 @@ def update_from_github(_: dict = Depends(require_master)):
     git_path = shutil.which("git") or "git"
     key_path = os.path.join(project_dir, ".github_deploy_key")
     env_ssh = f"ssh -i {key_path} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-    env = os.environ.copy()
+    env = _ensure_path(os.environ.copy())
     env["GIT_SSH_COMMAND"] = env_ssh
     try:
         result = subprocess.run(
@@ -79,6 +91,7 @@ def update_from_github(_: dict = Depends(require_master)):
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True,
+            env=env,
         )
         steps.append({"cmd": restart_cmd, "returncode": 0, "stdout": f"pid {proc.pid}", "stderr": ""})
     except Exception as e:
