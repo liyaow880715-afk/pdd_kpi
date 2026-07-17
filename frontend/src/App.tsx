@@ -18,6 +18,8 @@ import {
   ChevronUp,
   Sun,
   Moon,
+  XCircle,
+  CheckCircle2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Select } from "@/components/ui/select"
@@ -331,6 +333,7 @@ function Sidebar({
   const showMaster = isMaster()
   const [updating, setUpdating] = useState(false)
   const [updateMsg, setUpdateMsg] = useState("")
+  const [updateProgress, setUpdateProgress] = useState<any[]>([])
   const [costBadge, setCostBadge] = useState<{ pending: number; unmapped: number } | null>(null)
   const navItems =
     platform === "douyin" ? douyinNavItems : platform === "tmall" ? tmallNavItems : platform === "wechat" ? wechatNavItems : pddNavItems
@@ -374,13 +377,33 @@ function Sidebar({
     if (!confirm("确定从 GitHub 拉取最新代码并重启服务？")) return
     setUpdating(true)
     setUpdateMsg("")
+    setUpdateProgress([])
     try {
       const res = await updateFromGithub()
       if (res.up_to_date) {
         setUpdateMsg("当前已是最新版本，无需更新")
       } else if (res.success) {
-        setUpdateMsg("更新成功，服务已重启")
+        setUpdateProgress(res.steps || [])
+        setUpdateMsg("更新成功，等待服务重启后自动刷新...")
+        const waitForRestart = async (attempt = 0) => {
+          if (attempt > 30) {
+            setUpdateMsg("服务重启超时，请手动刷新页面")
+            return
+          }
+          try {
+            const r = await fetch("/api/health")
+            if (r.ok) {
+              window.location.reload()
+            } else {
+              throw new Error("not ready")
+            }
+          } catch {
+            setTimeout(() => waitForRestart(attempt + 1), 2000)
+          }
+        }
+        setTimeout(waitForRestart, 4000)
       } else {
+        setUpdateProgress(res.steps || [])
         setUpdateMsg(`更新失败：${JSON.stringify(res.steps)}`)
       }
     } catch (err: any) {
@@ -454,6 +477,29 @@ function Sidebar({
           onUpdate={handleUpdate}
         />
       </div>
+
+      {updateProgress.length > 0 && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-lg border bg-card p-6 shadow-lg">
+            <h3 className="mb-4 text-lg font-semibold">系统更新</h3>
+            <div className="max-h-80 space-y-2 overflow-auto">
+              {updateProgress.map((step, idx) => (
+                <div key={idx} className="flex items-start gap-2 text-sm">
+                  {step.returncode === 0 ? (
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
+                  ) : (
+                    <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                  )}
+                  <span className="break-all">{step.cmd}</span>
+                </div>
+              ))}
+            </div>
+            {updateMsg && (
+              <div className="mt-4 text-sm text-muted-foreground">{updateMsg}</div>
+            )}
+          </div>
+        </div>
+      )}
     </aside>
   )
 }
