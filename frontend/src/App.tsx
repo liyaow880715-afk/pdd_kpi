@@ -103,10 +103,14 @@ const platformTabs: { key: Platform; label: string; defaultTo: string }[] = [
   { key: "wechat", label: "微信小店", defaultTo: "/wechat" },
 ]
 
-function detectPlatform(pathname: string): Platform {
+function detectPlatform(pathname: string, search = ""): Platform {
   if (pathname.startsWith("/douyin")) return "douyin"
   if (pathname.startsWith("/tmall")) return "tmall"
   if (pathname.startsWith("/wechat")) return "wechat"
+  if (pathname === "/ai-wecom") {
+    const platform = new URLSearchParams(search).get("platform") as Platform
+    if (platform && platformTabs.some((t) => t.key === platform)) return platform
+  }
   return "pdd"
 }
 
@@ -362,11 +366,11 @@ function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
-  const [platform, setPlatform] = useState<Platform>(detectPlatform(location.pathname))
+  const [platform, setPlatform] = useState<Platform>(detectPlatform(location.pathname, location.search))
 
   useEffect(() => {
-    setPlatform(detectPlatform(location.pathname))
-  }, [location.pathname])
+    setPlatform(detectPlatform(location.pathname, location.search))
+  }, [location.pathname, location.search])
 
   const handlePlatformChange = (p: Platform) => {
     const tab = platformTabs.find((t) => t.key === p)
