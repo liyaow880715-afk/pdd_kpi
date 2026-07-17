@@ -157,13 +157,16 @@ def _merge_order_metrics(product_df: pd.DataFrame, orders_df: pd.DataFrame) -> p
         merged = merged.drop(columns=["product_name_y"])
 
     # 业务指标以订单为准
-    merged["gmv"] = merged.get("order_gmv", 0).fillna(0)
-    merged["valid_gmv"] = merged.get("valid_order_gmv", 0).fillna(0)
-    merged["order_count"] = merged.get("order_count", 0).fillna(0)
-    merged["valid_order_count"] = merged.get("valid_order_count", 0).fillna(0)
-    merged["actual_revenue"] = merged.get("order_actual_revenue", 0).fillna(0)
-    merged["quantity"] = merged.get("quantity", 0).fillna(0)
-    merged["valid_quantity"] = merged.get("valid_quantity", 0).fillna(0)
+    def _safe_fill(col):
+        return col.fillna(0) if hasattr(col, "fillna") else float(col)
+
+    merged["gmv"] = _safe_fill(merged.get("order_gmv", 0))
+    merged["valid_gmv"] = _safe_fill(merged.get("valid_order_gmv", 0))
+    merged["order_count"] = _safe_fill(merged.get("order_count", 0))
+    merged["valid_order_count"] = _safe_fill(merged.get("valid_order_count", 0))
+    merged["actual_revenue"] = _safe_fill(merged.get("order_actual_revenue", 0))
+    merged["quantity"] = _safe_fill(merged.get("quantity", 0))
+    merged["valid_quantity"] = _safe_fill(merged.get("valid_quantity", 0))
     # 退款指标：推广数据缺失时用订单数据兜底
     refund_orders_col = merged.get("refund_orders", 0)
     refund_amount_col = merged.get("refund_amount", 0)
