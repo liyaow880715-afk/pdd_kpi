@@ -91,6 +91,26 @@ def unmapped_products(
     ).to_dict("records")
 
 
+@router.get("/unmapped/count", response_model=Dict[str, int])
+def count_unmapped_products(
+    start_date: Optional[datetime.date] = Query(None),
+    end_date: Optional[datetime.date] = Query(None),
+    store_name: Optional[str] = Query(None),
+    user: dict = Depends(get_current_user),
+):
+    allowed = accessible_stores(user, list_store_names("wechat"))
+    store_names = [store_name] if store_name and store_name in allowed else allowed
+
+    start_s = start_date.strftime("%Y-%m-%d") if start_date else None
+    end_s = end_date.strftime("%Y-%m-%d") if end_date else None
+    df = wechat_cost_manager.get_products_without_cost(
+        store_names=store_names,
+        start_date=start_s,
+        end_date=end_s,
+    )
+    return {"count": len(df)}
+
+
 @router.post("/map", response_model=Dict[str, Any])
 def map_product_to_sku_code(
     req: ProductMappingRequest,

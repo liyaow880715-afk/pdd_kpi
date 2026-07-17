@@ -209,6 +209,11 @@ export async function getUnmappedProducts() {
   return res.data
 }
 
+export async function getGlobalUnmappedCount() {
+  const res = await api.get<{ count: number }>("/costs/global/unmapped/count")
+  return res.data.count
+}
+
 export async function mapProductToMerchantCode(productId: string, merchantCode: string, styleId?: string, productName?: string) {
   const res = await api.post("/costs/global/map", {
     product_id: productId,
@@ -493,6 +498,15 @@ export async function getDouyinUnmappedProducts(startDate?: string, endDate?: st
   return res.data
 }
 
+export async function getDouyinUnmappedCount(startDate?: string, endDate?: string, storeName?: string) {
+  const params: Record<string, any> = {}
+  if (startDate) params.start_date = startDate
+  if (endDate) params.end_date = endDate
+  if (storeName) params.store_name = storeName
+  const res = await api.get<{ count: number }>("/douyin/costs/unmapped/count", { params })
+  return res.data.count
+}
+
 export async function mapDouyinProductToMerchantCode(
   productId: string,
   merchantCode: string,
@@ -630,6 +644,15 @@ export async function getTmallUnmappedProducts(startDate?: string, endDate?: str
   if (storeName) params.store_name = storeName
   const res = await api.get<TmallUnmappedRow[]>("/tmall/costs/unmapped", { params })
   return res.data
+}
+
+export async function getTmallUnmappedCount(startDate?: string, endDate?: string, storeName?: string) {
+  const params: Record<string, any> = {}
+  if (startDate) params.start_date = startDate
+  if (endDate) params.end_date = endDate
+  if (storeName) params.store_name = storeName
+  const res = await api.get<{ count: number }>("/tmall/costs/unmapped/count", { params })
+  return res.data.count
 }
 
 export async function mapTmallProductToMerchantCode(
@@ -847,6 +870,15 @@ export async function getWechatUnmappedProducts(startDate?: string, endDate?: st
   if (storeName) params.store_name = storeName
   const res = await api.get<WechatUnmappedRow[]>("/wechat/costs/unmapped", { params })
   return res.data
+}
+
+export async function getWechatUnmappedCount(startDate?: string, endDate?: string, storeName?: string) {
+  const params: Record<string, any> = {}
+  if (startDate) params.start_date = startDate
+  if (endDate) params.end_date = endDate
+  if (storeName) params.store_name = storeName
+  const res = await api.get<{ count: number }>("/wechat/costs/unmapped/count", { params })
+  return res.data.count
 }
 
 export async function mapWechatProduct(skuCode: string, productName?: string) {

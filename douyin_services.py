@@ -13,7 +13,7 @@ import wecom as wecom_sender
 
 from douyin_loader import read_order_file, read_promotion_file
 from douyin_metrics import aggregate_product_metrics, build_product_metrics_from_orders, compute_overall_kpis
-from douyin_cost_manager import apply_costs_to_metrics, compute_cost_kpis
+from douyin_cost_manager import apply_costs_to_metrics, compute_cost_kpis, refresh_global_cost_codes
 from douyin_storage import (
     delete_daily_data,
     list_available_dates,
@@ -264,6 +264,14 @@ def import_douyin_daily_data(
                 processed_dates.add(d)
                 total_order_rows += len(day_orders)
 
+    # 导入订单后自动把新出现的商家编码刷新到成本配置
+    refreshed_codes = {"added": 0}
+    if order_bytes:
+        try:
+            refreshed_codes = refresh_global_cost_codes()
+        except Exception:
+            pass
+
     bump_data_version()
 
     return {
@@ -272,6 +280,7 @@ def import_douyin_daily_data(
         "processed_dates": sorted(processed_dates),
         "product_rows": total_product_rows,
         "order_rows": total_order_rows,
+        "refreshed_codes": refreshed_codes.get("added", 0),
     }
 
 

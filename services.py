@@ -398,6 +398,14 @@ def import_daily_data(
     total_order_rows = sum(r.get("order_rows", 0) for r in results if r.get("orders_saved"))
     processed_dates = sorted(set(r.get("date") for r in results if r.get("date")))
 
+    # 导入订单后自动把新出现的商家编码刷新到成本配置
+    refreshed_codes = {"added": 0}
+    if order_bytes:
+        try:
+            refreshed_codes = refresh_global_cost_codes_service()
+        except Exception:
+            pass
+
     bump_data_version()
     return {
         "store_name": store_name,
@@ -408,6 +416,7 @@ def import_daily_data(
         "order_rows": total_order_rows,
         "promo_saved": len(promo_only_results) > 0,
         "results": results,
+        "refreshed_codes": refreshed_codes.get("added", 0),
     }
 
 

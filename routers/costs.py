@@ -137,6 +137,11 @@ def list_unmapped_products(_: dict = Depends(require_master)):
     return services.get_unmapped_products()
 
 
+@router.get("/global/unmapped/count", response_model=Dict[str, int])
+def count_unmapped_products(_: dict = Depends(require_page("costs"))):
+    return {"count": len(services.get_unmapped_products())}
+
+
 @router.post("/global/map", response_model=Dict[str, Any])
 def map_product_to_merchant_code(
     req: ProductMappingRequest,

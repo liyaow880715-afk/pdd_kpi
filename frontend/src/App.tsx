@@ -24,7 +24,13 @@ import { Select } from "@/components/ui/select"
 import { useTheme } from "@/components/theme-provider"
 import { AuthGuard } from "@/components/auth-guard"
 import { canAccessPage, getCurrentUser, isMaster, logout } from "@/api/auth"
-import { updateFromGithub } from "@/api/client"
+import {
+  updateFromGithub,
+  getGlobalUnmappedCount,
+  getDouyinUnmappedCount,
+  getTmallUnmappedCount,
+  getWechatUnmappedCount,
+} from "@/api/client"
 import { LoginPage } from "@/pages/login"
 import { DashboardPage } from "@/pages/dashboard"
 import { StoresPage } from "@/pages/stores"
@@ -325,9 +331,40 @@ function Sidebar({
   const showMaster = isMaster()
   const [updating, setUpdating] = useState(false)
   const [updateMsg, setUpdateMsg] = useState("")
+  const [costBadge, setCostBadge] = useState<number | null>(null)
   const navItems =
     platform === "douyin" ? douyinNavItems : platform === "tmall" ? tmallNavItems : platform === "wechat" ? wechatNavItems : pddNavItems
   const visibleItems = navItems.filter((item) => (showMaster ? true : canAccessPage(item.id)))
+
+  const costPageId =
+    platform === "douyin" ? "douyin_costs" : platform === "tmall" ? "tmall_costs" : platform === "wechat" ? "wechat_costs" : "costs"
+
+  useEffect(() => {
+    const fetchCostBadge = async () => {
+      if (!showMaster && !canAccessPage(costPageId)) {
+        setCostBadge(null)
+        return
+      }
+      try {
+        let count = 0
+        if (platform === "douyin") {
+          count = await getDouyinUnmappedCount()
+        } else if (platform === "tmall") {
+          count = await getTmallUnmappedCount()
+        } else if (platform === "wechat") {
+          count = await getWechatUnmappedCount()
+        } else {
+          count = await getGlobalUnmappedCount()
+        }
+        setCostBadge(count > 0 ? count : null)
+      } catch {
+        setCostBadge(null)
+      }
+    }
+    fetchCostBadge()
+    const timer = setInterval(fetchCostBadge, 60000)
+    return () => clearInterval(timer)
+  }, [platform, showMaster, costPageId])
 
   const handleUpdate = async () => {
     if (!confirm("确定从 GitHub 拉取最新代码并重启服务？")) return
@@ -385,7 +422,12 @@ function Sidebar({
             }
           >
             <item.icon className="h-4 w-4" />
-            {item.label}
+            <span className="flex-1">{item.label}</span>
+            {(item.id === "costs" || item.id.endsWith("_costs")) && costBadge != null && (
+              <span className="ml-auto inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground">
+                {costBadge > 99 ? "99+" : costBadge}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>
