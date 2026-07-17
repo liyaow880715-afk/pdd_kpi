@@ -155,6 +155,7 @@ def read_order_file(file_bytes: bytes, filename: str = "") -> pd.DataFrame:
         return df
 
     df = df.copy()
+    df.columns = [str(c).strip() for c in df.columns]
     df["order_id"] = df.get("主订单编号", "").astype(str)
     df["sub_order_id"] = df.get("子订单编号", "").astype(str)
     df["product_id"] = df.get("商品ID", "").astype(str)
