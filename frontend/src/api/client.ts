@@ -630,3 +630,148 @@ export async function sendTmallWecomReport(reportDate: string, config: Record<st
   })
   return res.data
 }
+
+// ---------- 微信 ----------
+
+export type WechatCost = {
+  sku_code: string
+  product_name: string
+  product_cost: number
+  logistics_cost: number
+  updated_at?: string
+}
+
+export type WechatAnalysisData = {
+  product_metrics: Record<string, any>[]
+  kpis: Record<string, number | null>
+  cost_kpis: Record<string, number | null>
+}
+
+export type WechatKolStat = {
+  kol_name: string
+  kol_id?: string
+  channel?: string
+  order_count: number
+  gmv: number
+  net_revenue: number
+  commission: number
+  refund_amount: number
+}
+
+export async function getWechatStores() {
+  const res = await api.get<Store[]>("/stores", { params: { platform: "wechat" } })
+  return res.data
+}
+
+export async function importWechat(formData: FormData) {
+  const res = await api.post("/wechat/import", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  })
+  return res.data
+}
+
+export async function getWechatDashboardSummary(startDate: string, endDate: string, storeNames?: string[]) {
+  const params: Record<string, any> = { start_date: startDate, end_date: endDate }
+  if (storeNames && storeNames.length > 0) {
+    params.store_names = storeNames
+  }
+  const res = await api.get("/wechat/dashboard", { params })
+  return res.data as { store_count: number; kpis: Record<string, number | null>; cost_kpis: Record<string, number | null>; trend: any[] }
+}
+
+export async function getWechatAnalysis(storeName: string, startDate: string, endDate: string) {
+  const res = await api.get<WechatAnalysisData>("/wechat/analysis", {
+    params: { store_name: storeName, start_date: startDate, end_date: endDate },
+  })
+  return res.data
+}
+
+export async function getWechatTrend(storeName: string, startDate: string, endDate: string) {
+  const res = await api.get("/wechat/trend", {
+    params: { store_name: storeName, start_date: startDate, end_date: endDate },
+  })
+  return res.data
+}
+
+export async function getWechatOrders(storeName: string, date: string) {
+  const res = await api.get("/wechat/orders", { params: { store_name: storeName, date } })
+  return res.data
+}
+
+export async function getWechatRecords(storeName?: string) {
+  const res = await api.get<any[]>("/wechat/records", {
+    params: storeName ? { store_name: storeName } : {},
+  })
+  return res.data
+}
+
+export async function deleteWechatRecord(storeName: string, date: string) {
+  const res = await api.delete(`/wechat/records/${storeName}/${date}`)
+  return res.data
+}
+
+export async function getWechatKolStats(storeName: string, startDate: string, endDate: string) {
+  const res = await api.get<WechatKolStat[]>("/wechat/kol-stats", {
+    params: { store_name: storeName, start_date: startDate, end_date: endDate },
+  })
+  return res.data
+}
+
+export async function getWechatCosts() {
+  const res = await api.get<WechatCost[]>("/wechat/costs")
+  return res.data
+}
+
+export async function saveWechatCosts(costs: WechatCost[]) {
+  const res = await api.post("/wechat/costs", { costs })
+  return res.data
+}
+
+export async function refreshWechatCostCodes() {
+  const res = await api.post<{ added: number }>("/wechat/costs/refresh")
+  return res.data
+}
+
+export async function exportWechatCosts(pendingOnly: boolean = false) {
+  const res = await api.get("/wechat/costs/export", {
+    params: pendingOnly ? { pending_only: true } : {},
+    responseType: "blob",
+  })
+  return res.data as Blob
+}
+
+export async function importWechatCosts(file: File) {
+  const formData = new FormData()
+  formData.append("file", file)
+  const res = await api.post("/wechat/costs/import", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  })
+  return res.data as { updated: number }
+}
+
+export interface WechatUnmappedRow {
+  sku_code: string
+  product_name: string
+  platform_sku_code: string
+  store_name: string
+  order_count: number
+  first_date: string
+}
+
+export async function getWechatUnmappedProducts(startDate?: string, endDate?: string, storeName?: string) {
+  const params: Record<string, any> = {}
+  if (startDate) params.start_date = startDate
+  if (endDate) params.end_date = endDate
+  if (storeName) params.store_name = storeName
+  const res = await api.get<WechatUnmappedRow[]>("/wechat/costs/unmapped", { params })
+  return res.data
+}
+
+export async function mapWechatProduct(skuCode: string, productName?: string) {
+  const res = await api.post("/wechat/costs/map", {
+    product_id: skuCode,
+    sku_code: skuCode,
+    product_name: productName,
+  })
+  return res.data
+}

@@ -49,9 +49,14 @@ import { TmallOrdersPage } from "@/pages/tmall-orders"
 import { TmallCostsPage } from "@/pages/tmall-costs"
 import { TmallAiPage } from "@/pages/tmall-ai"
 import { TmallWecomPage } from "@/pages/tmall-wecom"
+import { WechatDashboardPage } from "@/pages/wechat-dashboard"
+import { WechatImportPage } from "@/pages/wechat-import"
+import { WechatMetricsPage } from "@/pages/wechat-metrics"
+import { WechatOrdersPage } from "@/pages/wechat-orders"
+import { WechatCostsPage } from "@/pages/wechat-costs"
 import { ChangePasswordPage } from "@/pages/change-password"
 
-type Platform = "pdd" | "douyin" | "tmall"
+type Platform = "pdd" | "douyin" | "tmall" | "wechat"
 
 interface NavItem {
   id: string
@@ -90,15 +95,25 @@ const tmallNavItems: NavItem[] = [
   { id: "tmall_wecom", to: "/tmall/wecom", label: "天猫企微", icon: MessageCircle },
 ]
 
+const wechatNavItems: NavItem[] = [
+  { id: "wechat", to: "/wechat", label: "微信总览", icon: LayoutDashboard },
+  { id: "wechat", to: "/wechat/import", label: "微信导入", icon: Upload },
+  { id: "wechat", to: "/wechat/metrics", label: "微信指标", icon: BarChart3 },
+  { id: "wechat", to: "/wechat/orders", label: "微信订单", icon: ShoppingCart },
+  { id: "wechat", to: "/wechat/costs", label: "微信成本", icon: Coins },
+]
+
 const platformTabs: { key: Platform; label: string; defaultTo: string }[] = [
   { key: "pdd", label: "拼多多", defaultTo: "/" },
   { key: "douyin", label: "抖音", defaultTo: "/douyin" },
   { key: "tmall", label: "天猫", defaultTo: "/tmall" },
+  { key: "wechat", label: "微信", defaultTo: "/wechat" },
 ]
 
 function detectPlatform(pathname: string): Platform {
   if (pathname.startsWith("/douyin")) return "douyin"
   if (pathname.startsWith("/tmall")) return "tmall"
+  if (pathname.startsWith("/wechat")) return "wechat"
   return "pdd"
 }
 
@@ -280,7 +295,8 @@ function Sidebar({
   const showMaster = isMaster()
   const [updating, setUpdating] = useState(false)
   const [updateMsg, setUpdateMsg] = useState("")
-  const navItems = platform === "douyin" ? douyinNavItems : platform === "tmall" ? tmallNavItems : pddNavItems
+  const navItems =
+    platform === "douyin" ? douyinNavItems : platform === "tmall" ? tmallNavItems : platform === "wechat" ? wechatNavItems : pddNavItems
   const visibleItems = navItems.filter((item) => (showMaster ? true : canAccessPage(item.id)))
 
   const handleUpdate = async () => {
@@ -421,6 +437,11 @@ function Layout() {
             <Route path="/tmall/costs" element={<TmallCostsPage />} />
             <Route path="/tmall/ai" element={<TmallAiPage />} />
             <Route path="/tmall/wecom" element={<TmallWecomPage />} />
+            <Route path="/wechat" element={<WechatDashboardPage />} />
+            <Route path="/wechat/import" element={<WechatImportPage />} />
+            <Route path="/wechat/metrics" element={<WechatMetricsPage />} />
+            <Route path="/wechat/orders" element={<WechatOrdersPage />} />
+            <Route path="/wechat/costs" element={<WechatCostsPage />} />
             <Route path="/change-password" element={<ChangePasswordPage />} />
           </Routes>
         </div>
