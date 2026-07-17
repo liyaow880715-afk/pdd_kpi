@@ -331,7 +331,11 @@ function Sidebar({
         {visibleItems.map((item) => (
           <NavLink
             key={item.to}
-            to={item.to}
+            to={
+              item.id === "ai_wecom"
+                ? { pathname: item.to, search: `?platform=${platform}` }
+                : item.to
+            }
             end
             onClick={onClose}
             className={({ isActive }) =>

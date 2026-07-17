@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { useSearchParams } from "react-router-dom"
 import { Bot, MessageCircle, Save, Send, Sparkles, TestTube } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -28,7 +29,15 @@ const PLATFORM_OPTIONS: { key: Platform; label: string }[] = [
 ]
 
 export function AiWecomPage() {
-  const [platform, setPlatform] = useState<Platform>("pdd")
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialPlatform = (searchParams.get("platform") as Platform) || "pdd"
+  const [platform, setPlatformState] = useState<Platform>(
+    PLATFORM_OPTIONS.some((p) => p.key === initialPlatform) ? initialPlatform : "pdd"
+  )
+  const setPlatform = (p: Platform) => {
+    setPlatformState(p)
+    setSearchParams({ platform: p }, { replace: true })
+  }
   const [stores, setStores] = useState<Store[]>([])
   const [aiConfig, setAiConfig] = useState<Record<string, any>>({})
   const [wecomConfig, setWecomConfig] = useState<Record<string, any>>({})

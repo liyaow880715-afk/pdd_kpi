@@ -15,21 +15,47 @@ import {
 import { getStores } from "@/api/client"
 import { createUser, deleteUser, getUsers, updateUser, type User } from "@/api/users"
 
-const pageOptions = [
-  { id: "overview", label: "总览" },
-  { id: "stores", label: "店铺" },
-  { id: "import", label: "导入" },
-  { id: "metrics", label: "指标" },
-  { id: "orders", label: "订单" },
-  { id: "costs", label: "成本" },
-  { id: "douyin", label: "抖音" },
-  { id: "douyin_costs", label: "抖音成本" },
-  { id: "tmall", label: "天猫" },
-  { id: "tmall_costs", label: "天猫成本" },
-  { id: "wechat", label: "微信" },
-  { id: "wechat_costs", label: "微信成本" },
-  { id: "ai_wecom", label: "AI & 企微" },
+const pageGroups = [
+  {
+    label: "拼多多",
+    options: [
+      { id: "overview", label: "总览" },
+      { id: "stores", label: "店铺" },
+      { id: "import", label: "导入" },
+      { id: "metrics", label: "指标" },
+      { id: "orders", label: "订单" },
+      { id: "costs", label: "成本" },
+    ],
+  },
+  {
+    label: "抖音",
+    options: [
+      { id: "douyin", label: "抖音" },
+      { id: "douyin_costs", label: "抖音成本" },
+    ],
+  },
+  {
+    label: "天猫",
+    options: [
+      { id: "tmall", label: "天猫" },
+      { id: "tmall_costs", label: "天猫成本" },
+    ],
+  },
+  {
+    label: "微信小店",
+    options: [
+      { id: "wechat", label: "微信" },
+      { id: "wechat_costs", label: "微信成本" },
+    ],
+  },
+  {
+    label: "通用",
+    options: [{ id: "ai_wecom", label: "AI & 企微" }],
+  },
 ]
+
+const flatPageOptions = pageGroups.flatMap((g) => g.options)
+const allPageIds = flatPageOptions.map((p) => p.id)
 
 export function UsersPage() {
   const [users, setUsers] = useState<User[]>([])
@@ -41,7 +67,7 @@ export function UsersPage() {
   const [newPassword, setNewPassword] = useState("")
   const [newRole, setNewRole] = useState<"sub" | "master">("sub")
   const [newStores, setNewStores] = useState<string[]>([])
-  const [newPages, setNewPages] = useState<string[]>(pageOptions.map((p) => p.id))
+  const [newPages, setNewPages] = useState<string[]>(allPageIds)
 
   const [editingUser, setEditingUser] = useState<string | null>(null)
   const [editStores, setEditStores] = useState<string[]>([])
@@ -82,7 +108,7 @@ export function UsersPage() {
       setNewPassword("")
       setNewRole("sub")
       setNewStores([])
-      setNewPages(pageOptions.map((p) => p.id))
+      setNewPages(allPageIds)
       await fetchData()
     } catch (err: any) {
       setError(err.message || "创建失败")
@@ -102,7 +128,7 @@ export function UsersPage() {
   const startEdit = (user: User) => {
     setEditingUser(user.username)
     setEditStores(user.allowed_stores || [])
-    setEditPages(user.allowed_pages || pageOptions.map((p) => p.id))
+    setEditPages(user.allowed_pages || allPageIds)
     setEditPassword("")
   }
 
@@ -143,26 +169,53 @@ export function UsersPage() {
   }
 
   const Checkboxes = ({
-    options,
     selected,
     onChange,
   }: {
-    options: { id: string; label: string }[]
     selected: string[]
     onChange: (v: string[]) => void
   }) => (
-    <div className="flex flex-wrap gap-3 mt-2">
-      {options.map((opt) => (
-        <label key={opt.id} className="flex items-center gap-1.5 text-sm">
-          <input
-            type="checkbox"
-            className="h-4 w-4 rounded border-input"
-            checked={selected.includes(opt.id)}
-            onChange={() => toggleItem(opt.id, selected, onChange)}
-          />
-          <span className="text-muted-foreground">{opt.label}</span>
-        </label>
-      ))}
+    <div className="space-y-4 mt-2">
+      {pageGroups.map((group) => {
+        const groupIds = group.options.map((o) => o.id)
+        const allChecked = groupIds.every((id) => selected.includes(id))
+        const someChecked = groupIds.some((id) => selected.includes(id)) && !allChecked
+        return (
+          <div key={group.label} className="rounded-md border p-3">
+            <label className="flex items-center gap-2 font-medium text-sm mb-2">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-input"
+                checked={allChecked}
+                ref={(el) => {
+                  if (el) el.indeterminate = someChecked
+                }}
+                onChange={() => {
+                  if (allChecked) {
+                    onChange(selected.filter((id) => !groupIds.includes(id)))
+                  } else {
+                    onChange(Array.from(new Set([...selected, ...groupIds])))
+                  }
+                }}
+              />
+              {group.label}
+            </label>
+            <div className="flex flex-wrap gap-3 pl-6">
+              {group.options.map((opt) => (
+                <label key={opt.id} className="flex items-center gap-1.5 text-sm">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-input"
+                    checked={selected.includes(opt.id)}
+                    onChange={() => toggleItem(opt.id, selected, onChange)}
+                  />
+                  <span className="text-muted-foreground">{opt.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 
@@ -247,7 +300,7 @@ export function UsersPage() {
                 </div>
                 <div>
                   <Label className="mb-2 block">功能权限</Label>
-                  <Checkboxes options={pageOptions} selected={newPages} onChange={setNewPages} />
+                  <Checkboxes selected={newPages} onChange={setNewPages} />
                 </div>
               </>
             )}
@@ -300,11 +353,11 @@ export function UsersPage() {
                     {user.role === "master" ? (
                       <span className="text-sm text-muted-foreground">全部功能</span>
                     ) : editingUser === user.username ? (
-                      <Checkboxes options={pageOptions} selected={editPages} onChange={setEditPages} />
+                      <Checkboxes selected={editPages} onChange={setEditPages} />
                     ) : user.allowed_pages.length > 0 ? (
                       <span className="text-sm">
                         {user.allowed_pages
-                          .map((id) => pageOptions.find((p) => p.id === id)?.label || id)
+                          .map((id) => flatPageOptions.find((p) => p.id === id)?.label || id)
                           .join(", ")}
                       </span>
                     ) : (
