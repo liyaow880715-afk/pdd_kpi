@@ -143,9 +143,10 @@ def _merge_order_metrics(product_df: pd.DataFrame, orders_df: pd.DataFrame) -> p
 
     order_summary = order_summary.copy()
 
-    for col in ["gmv", "valid_gmv", "order_count", "valid_order_count", "actual_revenue", "quantity", "valid_quantity", "refund_orders", "refund_amount"]:
-        if col in df.columns:
-            df = df.drop(columns=[col])
+    # 避免商品表和订单汇总表列名冲突导致重复列；保留 merge key product_name
+    cols_to_drop = [c for c in order_summary.columns if c in df.columns and c != "product_name"]
+    if cols_to_drop:
+        df = df.drop(columns=cols_to_drop)
 
     merged = df.merge(order_summary, left_on="product_name", right_on="product_key", how="outer", suffixes=("", "_order"))
 
