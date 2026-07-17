@@ -1,5 +1,6 @@
 venv/
 .graphify_venv/
+graphify-out/
 env/
 __pycache__/
 *.pyc
