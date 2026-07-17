@@ -7,6 +7,7 @@
 """
 
 import json
+import shutil
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -116,6 +117,29 @@ def add_store(name: str, platform: str = "pdd") -> dict:
     return store
 
 
+def _safe_dir_name(name: str) -> str:
+    if not name:
+        return "default"
+    return str(name).strip().replace("/", "_").replace("\\", "_").replace(" ", "_")
+
+
+def _rename_store_data_dirs(old_name: str, new_name: str):
+    """店铺重命名时同步迁移各平台的数据目录"""
+    old_dir = _safe_dir_name(old_name)
+    new_dir = _safe_dir_name(new_name)
+    if old_dir == new_dir:
+        return
+    for base in [Path("data/processed"), Path("data/processed_douyin"), Path("data/processed_tmall"), Path("data/processed_wechat")]:
+        old_path = base / old_dir
+        new_path = base / new_dir
+        if old_path.exists() and not new_path.exists():
+            try:
+                base.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(old_path), str(new_path))
+            except Exception:
+                pass
+
+
 def rename_store(store_id: str, new_name: str) -> Optional[dict]:
     """
     重命名店铺（只改显示名，不改存储 key，避免历史数据文件失联）
@@ -136,9 +160,11 @@ def rename_store(store_id: str, new_name: str) -> Optional[dict]:
         new_name = f"{original}_{counter}"
         counter += 1
 
+    old_name = store.get("name", "")
     store["name"] = new_name
     store["updated_at"] = datetime.now().isoformat()
     _save_registry(registry)
+    _rename_store_data_dirs(old_name, new_name)
     return store
 
 
