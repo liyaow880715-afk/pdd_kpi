@@ -12,6 +12,13 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 
 
+def _pick_column(df: pd.DataFrame, candidates: List[str]) -> Optional[str]:
+    for c in candidates:
+        if c in df.columns:
+            return c
+    return None
+
+
 def _parse_date(v: Any) -> Optional[str]:
     if pd.isna(v) or v is None:
         return None
@@ -167,7 +174,8 @@ def read_order_file(file_bytes: bytes, filename: str = "") -> pd.DataFrame:
     # 用商品标题作为 product_id，SKU 作为 style_id，方便成本/未映射检测
     df["product_id"] = df["product_name"]
     df["style_id"] = df["spec"]
-    df["merchant_code"] = df.get("商家编码", "").astype(str)
+    merchant_col = _pick_column(df, ["商家编码", "商家代码", "商品编码", "链接编码"])
+    df["merchant_code"] = df[merchant_col].astype(str) if merchant_col else ""
     df["quantity"] = pd.to_numeric(df.get("宝贝总数量", 0), errors="coerce").fillna(0)
     df["amount"] = df.get("买家实付金额", 0).apply(_clean_number)
     df["actual_revenue"] = df["amount"]

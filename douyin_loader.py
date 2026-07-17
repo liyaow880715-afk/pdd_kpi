@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 
 
+MERCHANT_CODE_COLS = ["商家编码", "商家代码", "商品编码", "链接编码"]
 SPEND_COLS = ["整体消耗", "综合成本"]
 GMV_COLS = ["整体成交金额"]
 VALID_GMV_COLS = ["净成交金额"]
@@ -160,7 +161,8 @@ def read_order_file(file_bytes: bytes, filename: str = "") -> pd.DataFrame:
     df["product_name"] = df.get("选购商品", "").astype(str)
     df["spec"] = df.get("商品规格", "").astype(str)
     df["style_id"] = df.get("规格ID", "").astype(str) if "规格ID" in df.columns else df.get("style_id", "").astype(str) if "style_id" in df.columns else ""
-    df["merchant_code"] = df.get("商家编码", "").astype(str) if "商家编码" in df.columns else ""
+    merchant_col = _pick_column(df, MERCHANT_CODE_COLS)
+    df["merchant_code"] = df[merchant_col].astype(str) if merchant_col else ""
     df["quantity"] = pd.to_numeric(df.get("商品数量", 0), errors="coerce").fillna(0)
     df["price"] = df.get("商品单价", 0).apply(_clean_number)
     df["amount"] = df.get("订单应付金额", 0).apply(_clean_number)

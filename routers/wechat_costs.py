@@ -103,18 +103,46 @@ def count_unmapped_products(
 
     start_s = start_date.strftime("%Y-%m-%d") if start_date else None
     end_s = end_date.strftime("%Y-%m-%d") if end_date else None
-    df = wechat_cost_manager.get_products_without_cost(
-        store_names=store_names,
-        start_date=start_s,
-        end_date=end_s,
-    )
-    unmapped = len(df)
-    pending = sum(
-        1
-        for c in wechat_cost_manager.get_costs()
-        if c.get("product_cost", 0) <= 0 or c.get("logistics_cost", 0) <= 0
-    )
-    return {"pending": pending, "unmapped": unmapped}
+    # 微信小店：有 SKU 编码但成本未维护 -> 红色待维护；SKU 编码为空 -> 绿色未映射
+    config = wechat_cost_manager.load_cost_config()
+    costs = wechat_cost_manager._get_costs_dict(config)
+
+    pending_codes: set = set()
+    unmapped_keys: set = set()
+
+    stores = store_names if store_names else wechat_cost_manager.list_wechat_stores()
+    for store in stores:
+        dates = wechat_cost_manager.list_available_dates(store)
+        if start_date and end_date:
+            start_s = start_date.strftime("%Y-%m-%d")
+            end_s = end_date.strftime("%Y-%m-%d")
+            dates = [d for d in dates if start_s <= d <= end_s]
+        for d in dates:
+            try:
+                orders = wechat_cost_manager.load_daily_orders(store, d)
+                if orders.empty or "sku_code" not in orders.columns:
+                    continue
+                for _, r in orders.iterrows():
+                    code = wechat_cost_manager._normalize_code(r.get("sku_code"))
+                    if not code:
+                        key = (
+                            str(r.get("product_name", "") or "").strip()
+                            or str(r.get("platform_sku_code", "") or "").strip()
+                        )
+                        if key:
+                            unmapped_keys.add(key)
+                        continue
+                    cost = costs.get(code)
+                    if (
+                        not cost
+                        or cost.get("product_cost", 0) <= 0
+                        or cost.get("logistics_cost", 0) <= 0
+                    ):
+                        pending_codes.add(code)
+            except Exception:
+                continue
+
+    return {"pending": len(pending_codes), "unmapped": len(unmapped_keys)}
 
 
 @router.post("/map", response_model=Dict[str, Any])
