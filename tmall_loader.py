@@ -172,7 +172,8 @@ def read_order_file(file_bytes: bytes, filename: str = "") -> pd.DataFrame:
     df["amount"] = df.get("买家实付金额", 0).apply(_clean_number)
     df["actual_revenue"] = df["amount"]
     df["refund_amount"] = df.get("退款金额", 0).apply(_clean_number)
-    df["compensation_amount"] = df.get("赔付金额", 0).apply(_clean_number)
+    compensation_col = "主动赔付金额" if "主动赔付金额" in df.columns else "赔付金额"
+    df["compensation_amount"] = df.get(compensation_col, 0).apply(_clean_number)
     df["order_status"] = df.get("订单状态", "").astype(str)
 
     # 时间字段
