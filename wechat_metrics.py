@@ -48,7 +48,7 @@ def build_product_metrics_from_orders(orders: pd.DataFrame, date: str) -> pd.Dat
     if orders is None or orders.empty:
         return pd.DataFrame()
 
-    df = orders.copy()
+    df = orders.copy().reset_index(drop=True)
     df["product_id"] = df["product_id"].astype(str).str.strip()
     df = df[df["product_id"] != ""].copy()
     if df.empty:

@@ -54,7 +54,7 @@ def build_product_metrics_from_orders(orders: pd.DataFrame, date: str) -> pd.Dat
     if orders is None or orders.empty:
         return pd.DataFrame()
 
-    df = orders.copy()
+    df = orders.copy().reset_index(drop=True)
     df["product_key"] = df["product_name"].astype(str).str.strip()
     df["amount"] = pd.to_numeric(df.get("amount", pd.Series(0, index=df.index)), errors="coerce").fillna(0)
     df["actual_revenue"] = pd.to_numeric(df.get("actual_revenue", pd.Series(0, index=df.index)), errors="coerce").fillna(0)

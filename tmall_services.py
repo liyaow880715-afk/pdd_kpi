@@ -54,7 +54,7 @@ def _build_order_summary(orders_df: pd.DataFrame) -> pd.DataFrame:
             ]
         )
 
-    df = orders_df.copy()
+    df = orders_df.copy().reset_index(drop=True)
     df["product_key"] = df["product_name"].astype(str).str.strip()
     df = df[df["product_key"] != ""].copy()
     if df.empty:
