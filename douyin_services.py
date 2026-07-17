@@ -141,8 +141,12 @@ def _merge_order_metrics(product_df: pd.DataFrame, orders_df: pd.DataFrame) -> p
     order_summary = order_summary.copy()
     order_summary["product_id"] = order_summary["product_id"].astype(str)
 
-    # 删除会被订单数据覆盖/补充的列
-    for col in ["gmv", "valid_gmv", "order_count", "valid_order_count", "actual_revenue", "quantity", "valid_quantity", "refund_orders", "refund_amount"]:
+    # 删除会被订单数据覆盖/补充的列（包括旧数据里可能残留的 order_* 列）
+    for col in [
+        "gmv", "valid_gmv", "order_count", "valid_order_count", "actual_revenue",
+        "quantity", "valid_quantity", "refund_orders", "refund_amount",
+        "order_gmv", "order_actual_revenue", "valid_order_gmv",
+    ]:
         if col in df.columns:
             df = df.drop(columns=[col])
 
