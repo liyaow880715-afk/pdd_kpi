@@ -56,11 +56,11 @@ def build_product_metrics_from_orders(orders: pd.DataFrame, date: str) -> pd.Dat
 
     df = orders.copy()
     df["product_key"] = df["product_name"].astype(str).str.strip()
-    df["amount"] = pd.to_numeric(df.get("amount", 0), errors="coerce").fillna(0)
-    df["actual_revenue"] = pd.to_numeric(df.get("actual_revenue", 0), errors="coerce").fillna(0)
-    df["quantity"] = pd.to_numeric(df.get("quantity", 0), errors="coerce").fillna(0)
-    df["refund_amount"] = pd.to_numeric(df.get("refund_amount", 0), errors="coerce").fillna(0)
-    df["compensation_amount"] = pd.to_numeric(df.get("compensation_amount", 0), errors="coerce").fillna(0)
+    df["amount"] = pd.to_numeric(df.get("amount", pd.Series(0, index=df.index)), errors="coerce").fillna(0)
+    df["actual_revenue"] = pd.to_numeric(df.get("actual_revenue", pd.Series(0, index=df.index)), errors="coerce").fillna(0)
+    df["quantity"] = pd.to_numeric(df.get("quantity", pd.Series(0, index=df.index)), errors="coerce").fillna(0)
+    df["refund_amount"] = pd.to_numeric(df.get("refund_amount", pd.Series(0, index=df.index)), errors="coerce").fillna(0)
+    df["compensation_amount"] = pd.to_numeric(df.get("compensation_amount", pd.Series(0, index=df.index)), errors="coerce").fillna(0)
 
     # 净订单：买家有实际付款且订单未关闭/取消
     invalid_status = df["order_status"].astype(str).str.contains("关闭|取消|交易关闭", na=False)

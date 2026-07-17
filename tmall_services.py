@@ -66,11 +66,11 @@ def _build_order_summary(orders_df: pd.DataFrame) -> pd.DataFrame:
             ]
         )
 
-    df["amount"] = pd.to_numeric(df.get("amount", 0), errors="coerce").fillna(0)
-    df["actual_revenue"] = pd.to_numeric(df.get("actual_revenue", 0), errors="coerce").fillna(0)
-    df["quantity"] = pd.to_numeric(df.get("quantity", 0), errors="coerce").fillna(0)
-    df["refund_amount"] = pd.to_numeric(df.get("refund_amount", 0), errors="coerce").fillna(0)
-    df["compensation_amount"] = pd.to_numeric(df.get("compensation_amount", 0), errors="coerce").fillna(0)
+    df["amount"] = pd.to_numeric(df.get("amount", pd.Series(0, index=df.index)), errors="coerce").fillna(0)
+    df["actual_revenue"] = pd.to_numeric(df.get("actual_revenue", pd.Series(0, index=df.index)), errors="coerce").fillna(0)
+    df["quantity"] = pd.to_numeric(df.get("quantity", pd.Series(0, index=df.index)), errors="coerce").fillna(0)
+    df["refund_amount"] = pd.to_numeric(df.get("refund_amount", pd.Series(0, index=df.index)), errors="coerce").fillna(0)
+    df["compensation_amount"] = pd.to_numeric(df.get("compensation_amount", pd.Series(0, index=df.index)), errors="coerce").fillna(0)
 
     # 净订单：买家有实际付款且订单未关闭/取消
     invalid_status = df["order_status"].astype(str).str.contains("关闭|取消|交易关闭", na=False)
@@ -159,15 +159,15 @@ def _merge_order_metrics(product_df: pd.DataFrame, orders_df: pd.DataFrame) -> p
     if "product_key" in merged.columns:
         merged = merged.drop(columns=["product_key"])
 
-    merged["gmv"] = merged.get("order_gmv", 0).fillna(0)
-    merged["valid_gmv"] = merged.get("valid_order_gmv", 0).fillna(0)
-    merged["order_count"] = merged.get("order_count", 0).fillna(0)
-    merged["valid_order_count"] = merged.get("valid_order_count", 0).fillna(0)
-    merged["actual_revenue"] = merged.get("order_actual_revenue", 0).fillna(0)
-    merged["quantity"] = merged.get("quantity", 0).fillna(0)
-    merged["valid_quantity"] = merged.get("valid_quantity", 0).fillna(0)
-    refund_orders_col = merged.get("refund_orders", 0)
-    refund_amount_col = merged.get("refund_amount", 0)
+    merged["gmv"] = merged.get("order_gmv", pd.Series(0, index=merged.index)).fillna(0)
+    merged["valid_gmv"] = merged.get("valid_order_gmv", pd.Series(0, index=merged.index)).fillna(0)
+    merged["order_count"] = merged.get("order_count", pd.Series(0, index=merged.index)).fillna(0)
+    merged["valid_order_count"] = merged.get("valid_order_count", pd.Series(0, index=merged.index)).fillna(0)
+    merged["actual_revenue"] = merged.get("order_actual_revenue", pd.Series(0, index=merged.index)).fillna(0)
+    merged["quantity"] = merged.get("quantity", pd.Series(0, index=merged.index)).fillna(0)
+    merged["valid_quantity"] = merged.get("valid_quantity", pd.Series(0, index=merged.index)).fillna(0)
+    refund_orders_col = merged.get("refund_orders", pd.Series(0, index=merged.index))
+    refund_amount_col = merged.get("refund_amount", pd.Series(0, index=merged.index))
     merged["refund_orders"] = refund_orders_col.fillna(0) if hasattr(refund_orders_col, "fillna") else float(refund_orders_col)
     merged["refund_amount"] = refund_amount_col.fillna(0) if hasattr(refund_amount_col, "fillna") else float(refund_amount_col)
 
