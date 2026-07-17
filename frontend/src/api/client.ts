@@ -270,6 +270,83 @@ export async function sendWecomReport(reportDate: string, config: Record<string,
   return res.data
 }
 
+// ---------- AI & 企微统一接口 ----------
+
+const AI_PREFIX: Record<string, string> = {
+  pdd: "/ai",
+  douyin: "/douyin/ai",
+  tmall: "/tmall/ai",
+}
+
+const WECOM_PREFIX: Record<string, string> = {
+  pdd: "/wecom",
+  douyin: "/douyin/wecom",
+  tmall: "/tmall/wecom",
+}
+
+function aiPrefix(platform: string) {
+  return AI_PREFIX[platform] || "/ai"
+}
+
+function wecomPrefix(platform: string) {
+  return WECOM_PREFIX[platform] || "/wecom"
+}
+
+export async function getAiConfigByPlatform(platform: string) {
+  const res = await api.get(`${aiPrefix(platform)}/config`)
+  return res.data
+}
+
+export async function updateAiConfigByPlatform(platform: string, config: Record<string, any>) {
+  const res = await api.post(`${aiPrefix(platform)}/config`, config)
+  return res.data
+}
+
+export async function testAiByPlatform(platform: string, config: Record<string, any>) {
+  const res = await api.post(`${aiPrefix(platform)}/test`, config)
+  return res.data
+}
+
+export async function generateAiReportByPlatform(
+  platform: string,
+  storeName: string,
+  startDate: string,
+  endDate: string,
+  config: Record<string, any>
+) {
+  const prefix = aiPrefix(platform)
+  if (prefix.startsWith("/douyin") || prefix.startsWith("/tmall")) {
+    const res = await api.post(`${prefix}/report`, config, {
+      params: { store_name: storeName, start_date: startDate, end_date: endDate },
+    })
+    return res.data
+  }
+  const res = await api.post(`${prefix}/report`, { store_name: storeName, start_date: startDate, end_date: endDate, config })
+  return res.data
+}
+
+export async function getWecomConfigByPlatform(platform: string) {
+  const res = await api.get(`${wecomPrefix(platform)}/config`)
+  return res.data
+}
+
+export async function updateWecomConfigByPlatform(platform: string, config: Record<string, any>) {
+  const res = await api.post(`${wecomPrefix(platform)}/config`, config)
+  return res.data
+}
+
+export async function sendWecomReportByPlatform(platform: string, reportDate: string, config: Record<string, any>) {
+  const prefix = wecomPrefix(platform)
+  if (prefix.startsWith("/douyin") || prefix.startsWith("/tmall")) {
+    const res = await api.post(`${prefix}/send`, config, {
+      params: { report_date: reportDate },
+    })
+    return res.data
+  }
+  const res = await api.post(`${prefix}/send`, { report_date: reportDate, config })
+  return res.data
+}
+
 // ---------- 抖音 ----------
 
 export type DouyinCost = {

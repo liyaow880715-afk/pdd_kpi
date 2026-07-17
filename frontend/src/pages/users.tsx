@@ -22,9 +22,13 @@ const pageOptions = [
   { id: "metrics", label: "指标" },
   { id: "orders", label: "订单" },
   { id: "costs", label: "成本" },
-  { id: "ai", label: "AI" },
-  { id: "wecom", label: "企微" },
   { id: "douyin", label: "抖音" },
+  { id: "douyin_costs", label: "抖音成本" },
+  { id: "tmall", label: "天猫" },
+  { id: "tmall_costs", label: "天猫成本" },
+  { id: "wechat", label: "微信" },
+  { id: "wechat_costs", label: "微信成本" },
+  { id: "ai_wecom", label: "AI & 企微" },
 ]
 
 export function UsersPage() {

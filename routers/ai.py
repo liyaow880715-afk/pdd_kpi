@@ -18,14 +18,14 @@ class AIReportRequest(BaseModel):
 
 
 @router.get("/config", response_model=Dict[str, Any])
-def get_config(_: dict = Depends(require_page("ai"))):
+def get_config(_: dict = Depends(require_page("ai_wecom"))):
     return services.get_ai_config()
 
 
 @router.post("/config", response_model=Dict[str, Any])
 def update_config(
     config: Dict[str, Any],
-    _: dict = Depends(require_page("ai")),
+    _: dict = Depends(require_page("ai_wecom")),
 ):
     return services.update_ai_config(config)
 
@@ -33,7 +33,7 @@ def update_config(
 @router.post("/test", response_model=Dict[str, Any])
 def test_ai(
     config: Dict[str, Any],
-    _: dict = Depends(require_page("ai")),
+    _: dict = Depends(require_page("ai_wecom")),
 ):
     return services.test_ai_service(config)
 

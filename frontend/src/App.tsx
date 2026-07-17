@@ -8,7 +8,6 @@ import {
   ShoppingCart,
   Coins,
   Bot,
-  MessageCircle,
   Menu,
   X,
   LogOut,
@@ -32,23 +31,18 @@ import { ImportPage } from "@/pages/import"
 import { MetricsPage } from "@/pages/metrics"
 import { OrdersPage } from "@/pages/orders"
 import { CostsPage } from "@/pages/costs"
-import { AiPage } from "@/pages/ai"
-import { WecomPage } from "@/pages/wecom"
+import { AiWecomPage } from "@/pages/ai-wecom"
 import { UsersPage } from "@/pages/users"
 import { DouyinDashboardPage } from "@/pages/douyin-dashboard"
 import { DouyinImportPage } from "@/pages/douyin-import"
 import { DouyinMetricsPage } from "@/pages/douyin-metrics"
 import { DouyinOrdersPage } from "@/pages/douyin-orders"
 import { DouyinCostsPage } from "@/pages/douyin-costs"
-import { DouyinAiPage } from "@/pages/douyin-ai"
-import { DouyinWecomPage } from "@/pages/douyin-wecom"
 import { TmallDashboardPage } from "@/pages/tmall-dashboard"
 import { TmallImportPage } from "@/pages/tmall-import"
 import { TmallMetricsPage } from "@/pages/tmall-metrics"
 import { TmallOrdersPage } from "@/pages/tmall-orders"
 import { TmallCostsPage } from "@/pages/tmall-costs"
-import { TmallAiPage } from "@/pages/tmall-ai"
-import { TmallWecomPage } from "@/pages/tmall-wecom"
 import { WechatDashboardPage } from "@/pages/wechat-dashboard"
 import { WechatImportPage } from "@/pages/wechat-import"
 import { WechatMetricsPage } from "@/pages/wechat-metrics"
@@ -71,8 +65,7 @@ const pddNavItems: NavItem[] = [
   { id: "metrics", to: "/metrics", label: "指标", icon: BarChart3 },
   { id: "orders", to: "/orders", label: "订单", icon: ShoppingCart },
   { id: "costs", to: "/costs", label: "成本", icon: Coins },
-  { id: "ai", to: "/ai", label: "AI", icon: Bot },
-  { id: "wecom", to: "/wecom", label: "企微", icon: MessageCircle },
+  { id: "ai_wecom", to: "/ai-wecom", label: "AI & 企微", icon: Bot },
 ]
 
 const douyinNavItems: NavItem[] = [
@@ -81,8 +74,7 @@ const douyinNavItems: NavItem[] = [
   { id: "douyin", to: "/douyin/metrics", label: "抖音指标", icon: BarChart3 },
   { id: "douyin", to: "/douyin/orders", label: "抖音订单", icon: ShoppingCart },
   { id: "douyin", to: "/douyin/costs", label: "抖音成本", icon: Coins },
-  { id: "douyin", to: "/douyin/ai", label: "抖音 AI", icon: Bot },
-  { id: "douyin", to: "/douyin/wecom", label: "抖音企微", icon: MessageCircle },
+  { id: "ai_wecom", to: "/ai-wecom", label: "AI & 企微", icon: Bot },
 ]
 
 const tmallNavItems: NavItem[] = [
@@ -91,8 +83,7 @@ const tmallNavItems: NavItem[] = [
   { id: "tmall", to: "/tmall/metrics", label: "天猫指标", icon: BarChart3 },
   { id: "tmall", to: "/tmall/orders", label: "天猫订单", icon: ShoppingCart },
   { id: "tmall", to: "/tmall/costs", label: "天猫成本", icon: Coins },
-  { id: "tmall_ai", to: "/tmall/ai", label: "天猫 AI", icon: Bot },
-  { id: "tmall_wecom", to: "/tmall/wecom", label: "天猫企微", icon: MessageCircle },
+  { id: "ai_wecom", to: "/ai-wecom", label: "AI & 企微", icon: Bot },
 ]
 
 const wechatNavItems: NavItem[] = [
@@ -101,6 +92,7 @@ const wechatNavItems: NavItem[] = [
   { id: "wechat", to: "/wechat/metrics", label: "微信指标", icon: BarChart3 },
   { id: "wechat", to: "/wechat/orders", label: "微信订单", icon: ShoppingCart },
   { id: "wechat", to: "/wechat/costs", label: "微信成本", icon: Coins },
+  { id: "ai_wecom", to: "/ai-wecom", label: "AI & 企微", icon: Bot },
 ]
 
 const platformTabs: { key: Platform; label: string; defaultTo: string }[] = [
@@ -420,23 +412,18 @@ function Layout() {
             <Route path="/metrics" element={<MetricsPage />} />
             <Route path="/orders" element={<OrdersPage />} />
             <Route path="/costs" element={<CostsPage />} />
-            <Route path="/ai" element={<AiPage />} />
-            <Route path="/wecom" element={<WecomPage />} />
+            <Route path="/ai-wecom" element={<AiWecomPage />} />
             <Route path="/users" element={<UsersPage />} />
             <Route path="/douyin" element={<DouyinDashboardPage />} />
             <Route path="/douyin/import" element={<DouyinImportPage />} />
             <Route path="/douyin/metrics" element={<DouyinMetricsPage />} />
             <Route path="/douyin/orders" element={<DouyinOrdersPage />} />
             <Route path="/douyin/costs" element={<DouyinCostsPage />} />
-            <Route path="/douyin/ai" element={<DouyinAiPage />} />
-            <Route path="/douyin/wecom" element={<DouyinWecomPage />} />
             <Route path="/tmall" element={<TmallDashboardPage />} />
             <Route path="/tmall/import" element={<TmallImportPage />} />
             <Route path="/tmall/metrics" element={<TmallMetricsPage />} />
             <Route path="/tmall/orders" element={<TmallOrdersPage />} />
             <Route path="/tmall/costs" element={<TmallCostsPage />} />
-            <Route path="/tmall/ai" element={<TmallAiPage />} />
-            <Route path="/tmall/wecom" element={<TmallWecomPage />} />
             <Route path="/wechat" element={<WechatDashboardPage />} />
             <Route path="/wechat/import" element={<WechatImportPage />} />
             <Route path="/wechat/metrics" element={<WechatMetricsPage />} />

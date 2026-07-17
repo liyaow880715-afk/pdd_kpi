@@ -46,7 +46,7 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
-DEFAULT_SUB_PAGES = ["overview", "stores", "import", "metrics", "orders", "costs", "douyin", "douyin_costs", "tmall", "tmall_costs", "tmall_ai", "tmall_wecom", "wechat", "wechat_costs"]
+DEFAULT_SUB_PAGES = ["overview", "stores", "import", "metrics", "orders", "costs", "douyin", "douyin_costs", "tmall", "tmall_costs", "wechat", "wechat_costs", "ai_wecom"]
 
 
 def ensure_admin(default_password: str, password_changed: bool = False):
@@ -69,10 +69,26 @@ def ensure_admin(default_password: str, password_changed: bool = False):
         }
         updated = True
 
-    # 为旧子账号补齐默认页面权限
+    # 为旧子账号补齐默认页面权限，并迁移旧的 AI/企微权限为统一入口
+    OLD_AI_WECOM_PAGES = {"ai", "wecom", "douyin_ai", "douyin_wecom", "tmall_ai", "tmall_wecom"}
     for u in users.values():
-        if u.get("role") == "sub" and "allowed_pages" not in u:
+        if u.get("role") != "sub":
+            continue
+        if "allowed_pages" not in u:
             u["allowed_pages"] = DEFAULT_SUB_PAGES.copy()
+            updated = True
+            continue
+        pages = set(u["allowed_pages"])
+        changed = False
+        if pages & OLD_AI_WECOM_PAGES:
+            pages.add("ai_wecom")
+            pages -= OLD_AI_WECOM_PAGES
+            changed = True
+        if "ai_wecom" not in pages:
+            pages.add("ai_wecom")
+            changed = True
+        if changed:
+            u["allowed_pages"] = list(pages)
             updated = True
 
     if updated:
@@ -164,7 +180,7 @@ def allowed_store_names(user: dict, all_stores: List[str]) -> List[str]:
 
 def allowed_page_names(user: dict) -> List[str]:
     if user.get("role") == "master":
-        return DEFAULT_SUB_PAGES + ["ai", "wecom", "users"]
+        return DEFAULT_SUB_PAGES + ["ai", "wecom", "ai_wecom", "users"]
     return list(user.get("allowed_pages") or DEFAULT_SUB_PAGES)
 
 
