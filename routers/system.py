@@ -15,9 +15,11 @@ from auth import require_master
 router = APIRouter()
 
 
-PROJECT_DIR = "/home/ubuntu/pdd_kpi"
-FRONTEND_DIR = os.path.join(PROJECT_DIR, "frontend")
-DEPLOY_DIR = "/var/www/pdd_kpi/dist"
+# 路径支持通过环境变量覆盖，便于不同部署环境复用
+PROJECT_DIR = os.getenv("PROJECT_DIR", "/home/ubuntu/pdd_kpi")
+FRONTEND_DIR = os.path.join(PROJECT_DIR, os.getenv("FRONTEND_DIR", "frontend"))
+DEPLOY_DIR = os.getenv("DEPLOY_DIR", "/var/www/pdd_kpi/dist")
+GITHUB_DEPLOY_KEY = os.getenv("GITHUB_DEPLOY_KEY", os.path.join(PROJECT_DIR, ".github_deploy_key"))
 
 
 def _ensure_path(env: Dict[str, str]) -> Dict[str, str]:
@@ -78,8 +80,9 @@ def update_from_github(_: dict = Depends(require_master)):
     steps = []
 
     git_path = shutil.which("git") or "git"
-    key_path = os.path.join(PROJECT_DIR, ".github_deploy_key")
-    env_ssh = f"ssh -i {key_path} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+    env_ssh = (
+        f"ssh -i {GITHUB_DEPLOY_KEY} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+    )
     env = _ensure_path(os.environ.copy())
     env["GIT_SSH_COMMAND"] = env_ssh
 
@@ -108,35 +111,47 @@ def update_from_github(_: dict = Depends(require_master)):
     # 3. 构建前端
     steps.append(_run(["npm", "run", "build"], cwd=FRONTEND_DIR, timeout=180))
 
-    # 4. 部署 dist 到 Nginx 目录
-    deploy_cmd = [
-        "bash",
-        "-c",
-        f"sudo -n rm -rf {DEPLOY_DIR} && "
-        f"sudo -n cp -r {os.path.join(FRONTEND_DIR, 'dist')} {DEPLOY_DIR} && "
-        f"sudo -n chown -R www-data:www-data {DEPLOY_DIR} && "
-        f"sudo -n chmod -R 755 {DEPLOY_DIR}",
+    # 4. 部署 dist 到 Nginx 目录（避免 shell=True，使用列表参数）
+    deploy_steps = [
+        (["sudo", "-n", "rm", "-rf", DEPLOY_DIR], PROJECT_DIR),
+        (["sudo", "-n", "cp", "-r", os.path.join(FRONTEND_DIR, "dist"), DEPLOY_DIR], PROJECT_DIR),
+        (["sudo", "-n", "chown", "-R", "www-data:www-data", DEPLOY_DIR], PROJECT_DIR),
+        (["sudo", "-n", "chmod", "-R", "755", DEPLOY_DIR], PROJECT_DIR),
     ]
-    steps.append(_run(deploy_cmd, cwd=PROJECT_DIR, timeout=60))
+    for cmd, cwd in deploy_steps:
+        steps.append(_run(cmd, cwd=cwd, timeout=60))
 
-    # 5. 清理字节码缓存
-    steps.append(_run(["find", ".", "-type", "d", "-name", "__pycache__", "-exec", "rm", "-rf", "{}", "+"], cwd=PROJECT_DIR))
+    # 5. 清理字节码缓存（不依赖 find -exec rm）
+    try:
+        removed = 0
+        for root, dirs, _ in os.walk(PROJECT_DIR):
+            for d in list(dirs):
+                if d == "__pycache__":
+                    p = os.path.join(root, d)
+                    try:
+                        shutil.rmtree(p)
+                        removed += 1
+                    except Exception:
+                        pass
+                    dirs.remove(d)
+        steps.append({"cmd": "clean __pycache__", "returncode": 0, "stdout": f"removed {removed}", "stderr": ""})
+    except Exception as e:
+        steps.append({"cmd": "clean __pycache__", "returncode": -1, "stdout": "", "stderr": str(e)})
 
-    # 6. 延迟重启后端服务，确保当前 HTTP 响应能返回给前端
-    restart_cmd = "nohup bash -c 'sleep 3 && sudo -n systemctl restart pdd_kpi' > /tmp/pdd_kpi_restart.log 2>&1 &"
+    # 6. 延迟重启后端服务，确保当前 HTTP 响应能返回给前端（不使用 shell=True）
+    restart_cmd_list = ["bash", "-c", "sleep 3 && sudo -n systemctl restart pdd_kpi"]
     try:
         proc = subprocess.Popen(
-            restart_cmd,
+            restart_cmd_list,
             cwd=PROJECT_DIR,
-            shell=True,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True,
             env=env,
         )
-        steps.append({"cmd": restart_cmd, "returncode": 0, "stdout": f"pid {proc.pid}", "stderr": ""})
+        steps.append({"cmd": " ".join(restart_cmd_list), "returncode": 0, "stdout": f"pid {proc.pid}", "stderr": ""})
     except Exception as e:
-        steps.append({"cmd": restart_cmd, "returncode": -1, "stdout": "", "stderr": str(e)})
+        steps.append({"cmd": " ".join(restart_cmd_list), "returncode": -1, "stdout": "", "stderr": str(e)})
 
     success = all(s["returncode"] == 0 for s in steps)
     return {"success": success, "steps": steps}

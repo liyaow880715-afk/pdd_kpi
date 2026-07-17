@@ -4,7 +4,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, Depends
 
 import douyin_services
-from auth import get_current_user, require_page
+from auth import authorize_store, get_current_user, require_master, require_page
 
 router = APIRouter()
 
@@ -17,7 +17,7 @@ def get_config(user: dict = Depends(require_page("ai_wecom"))):
 @router.post("/config", response_model=Dict[str, Any])
 def update_config(
     config: Dict[str, Any],
-    user: dict = Depends(require_page("ai_wecom")),
+    user: dict = Depends(require_master),
 ):
     return douyin_services.update_douyin_ai_config(config)
 
@@ -42,4 +42,5 @@ def generate_report(
     config: Dict[str, Any],
     user: dict = Depends(require_page("ai_wecom")),
 ):
+    authorize_store(user, store_name)
     return douyin_services.generate_douyin_ai_report(store_name, start_date, end_date, config)

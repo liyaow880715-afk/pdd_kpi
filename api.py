@@ -51,9 +51,14 @@ async def http_auth_middleware(request: Request, call_next):
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    # 生产环境不暴露原始异常详情，避免泄露内部实现
+    is_dev = os.getenv("ENV", "production").lower() in ("dev", "development", "debug")
+    detail = str(exc) if is_dev else "服务器内部错误"
+    import logging
+    logging.exception("Unhandled exception at %s", request.url.path)
     return JSONResponse(
         status_code=500,
-        content={"detail": str(exc)},
+        content={"detail": detail},
     )
 
 

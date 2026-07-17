@@ -92,14 +92,14 @@ def import_costs(
 # ---------- 全局成本（仅主账号可管理） ----------
 
 @router.get("/global", response_model=List[Dict[str, Any]])
-def list_global_costs(_: dict = Depends(require_page("costs"))):
+def list_global_costs(_: dict = Depends(require_master)):
     return services.get_global_costs()
 
 
 @router.post("/global", response_model=Dict[str, Any])
 def save_global_costs(
     req: SaveGlobalCostsRequest,
-    _: dict = Depends(require_page("costs")),
+    _: dict = Depends(require_master),
 ):
     result = services.save_global_costs([c.model_dump() for c in req.costs])
     bump_data_version()
@@ -107,7 +107,7 @@ def save_global_costs(
 
 
 @router.post("/global/refresh", response_model=Dict[str, Any])
-def refresh_global_cost_codes(_: dict = Depends(require_page("costs"))):
+def refresh_global_cost_codes(_: dict = Depends(require_master)):
     result = services.refresh_global_cost_codes_service()
     bump_data_version()
     return result
@@ -116,7 +116,7 @@ def refresh_global_cost_codes(_: dict = Depends(require_page("costs"))):
 @router.get("/global/export", response_class=PlainTextResponse)
 def export_global_costs(
     pending_only: bool = False,
-    _: dict = Depends(require_page("costs")),
+    _: dict = Depends(require_master),
 ):
     return services.export_global_cost_csv(pending_only)
 
@@ -124,23 +124,23 @@ def export_global_costs(
 @router.post("/global/import", response_model=Dict[str, Any])
 def import_global_costs(
     file: UploadFile = File(...),
-    _: dict = Depends(require_page("costs")),
+    _: dict = Depends(require_master),
 ):
-    file_bytes = file.file.read()
+    file_bytes = read_upload_file(file)
     result = services.import_global_cost_csv(file_bytes)
     bump_data_version()
     return result
 
 
 @router.get("/global/unmapped", response_model=List[Dict[str, Any]])
-def list_unmapped_products(_: dict = Depends(require_page("costs"))):
+def list_unmapped_products(_: dict = Depends(require_master)):
     return services.get_unmapped_products()
 
 
 @router.post("/global/map", response_model=Dict[str, Any])
 def map_product_to_merchant_code(
     req: ProductMappingRequest,
-    _: dict = Depends(require_page("costs")),
+    _: dict = Depends(require_master),
 ):
     result = services.save_global_product_mapping_service(
         req.product_id, req.merchant_code, style_id=req.style_id, product_name=req.product_name

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 
 import services
 from auth import authorize_store, require_page
+from helpers import read_upload_file
 
 router = APIRouter()
 
@@ -20,8 +21,8 @@ def import_daily_data(
     authorize_store(user, store_name)
     if not promo_file and not order_file:
         return {"error": "请至少上传推广数据或订单数据中的一个"}
-    promo_bytes = promo_file.file.read() if promo_file else None
-    order_bytes = order_file.file.read() if order_file else None
+    promo_bytes = read_upload_file(promo_file) if promo_file else None
+    order_bytes = read_upload_file(order_file) if order_file else None
     return services.import_daily_data(
         store_name=store_name,
         import_date=import_date,

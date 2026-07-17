@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 
 import wechat_services
 from auth import authorize_store, accessible_stores, require_page
+from helpers import read_upload_file
 from store_manager import list_store_names
 
 router = APIRouter()
@@ -20,7 +21,7 @@ def import_wechat_data(
     authorize_store(user, store_name)
     if not order_file:
         return {"error": "请上传订单数据"}
-    order_bytes = order_file.file.read()
+    order_bytes = read_upload_file(order_file)
     return wechat_services.import_wechat_daily_data(
         store_name=store_name,
         import_date=import_date,

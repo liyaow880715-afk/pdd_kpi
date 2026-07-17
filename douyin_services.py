@@ -452,7 +452,8 @@ def update_douyin_wecom_config(config: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def send_douyin_wecom_report(report_date: datetime.date, config: Dict[str, Any]) -> Dict[str, Any]:
-    content = build_daily_report(report_date)
+    from douyin_report_builder import build_daily_report as build_douyin_daily_report
+    content = build_douyin_daily_report(report_date)
     return wecom_sender.send_wecom_report(content=content, config=config)
 
 

@@ -22,8 +22,8 @@ export function ChangePasswordPage() {
     e.preventDefault()
     setError("")
     setSuccess("")
-    if (newPassword.length < 6) {
-      setError("新密码至少 6 位")
+    if (newPassword.length < 8 || !/[a-zA-Z]/.test(newPassword) || !/\d/.test(newPassword)) {
+      setError("新密码至少 8 位且同时包含字母和数字")
       return
     }
     if (newPassword !== confirmPassword) {
@@ -73,15 +73,17 @@ export function ChangePasswordPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && <div className="text-sm text-destructive">{error}</div>}
             {success && <div className="text-sm text-green-600">{success}</div>}
-            <div className="space-y-2">
-              <Label>原密码</Label>
-              <Input
-                type="password"
-                value={oldPassword}
-                onChange={(e) => setOldPassword(e.target.value)}
-                required
-              />
-            </div>
+            {!forced && (
+              <div className="space-y-2">
+                <Label>原密码</Label>
+                <Input
+                  type="password"
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                  required={!forced}
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <Label>新密码</Label>
               <Input

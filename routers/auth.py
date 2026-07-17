@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from auth import authenticate_user, create_access_token, get_current_user
+from auth import authenticate_user, create_access_token, get_current_user, _is_strong_password
 from user_manager import get_user, update_user, verify_password
 
 router = APIRouter()
@@ -71,9 +71,16 @@ def change_password(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
 
-    # 修改密码必须提供原密码；主账号可通过用户管理重置子账号密码
-    if not req.old_password or not verify_password(req.old_password, user["password_hash"]):
+    # 首次登录强制改密或未修改过密码时，允许不提供原密码
+    require_old = user.get("password_changed", True)
+    if require_old and (not req.old_password or not verify_password(req.old_password, user["password_hash"])):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="原密码错误")
+
+    if not _is_strong_password(req.new_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="新密码强度不足：至少 8 位且同时包含字母和数字",
+        )
 
     update_user(username, password=req.new_password)
     new_token = create_access_token(

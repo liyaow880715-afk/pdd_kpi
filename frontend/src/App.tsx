@@ -103,6 +103,47 @@ const platformTabs: { key: Platform; label: string; defaultTo: string }[] = [
   { key: "wechat", label: "微信小店", defaultTo: "/wechat" },
 ]
 
+const routePageMap: { path: string; id: string }[] = [
+  { path: "/", id: "overview" },
+  { path: "/stores", id: "stores" },
+  { path: "/import", id: "import" },
+  { path: "/metrics", id: "metrics" },
+  { path: "/orders", id: "orders" },
+  { path: "/costs", id: "costs" },
+  { path: "/douyin", id: "douyin_overview" },
+  { path: "/douyin/import", id: "douyin_import" },
+  { path: "/douyin/metrics", id: "douyin_metrics" },
+  { path: "/douyin/orders", id: "douyin_orders" },
+  { path: "/douyin/costs", id: "douyin_costs" },
+  { path: "/tmall", id: "tmall_overview" },
+  { path: "/tmall/import", id: "tmall_import" },
+  { path: "/tmall/metrics", id: "tmall_metrics" },
+  { path: "/tmall/orders", id: "tmall_orders" },
+  { path: "/tmall/costs", id: "tmall_costs" },
+  { path: "/wechat", id: "wechat_overview" },
+  { path: "/wechat/import", id: "wechat_import" },
+  { path: "/wechat/metrics", id: "wechat_metrics" },
+  { path: "/wechat/orders", id: "wechat_orders" },
+  { path: "/wechat/costs", id: "wechat_costs" },
+  { path: "/ai-wecom", id: "ai_wecom" },
+  { path: "/users", id: "users" },
+]
+
+function getPageIdByPath(pathname: string): string | null {
+  if (pathname === "/change-password") return null
+  const exact = routePageMap.find((r) => r.path === pathname)
+  if (exact) return exact.id
+  const prefix = routePageMap.find((r) => pathname.startsWith(r.path + "/"))
+  return prefix?.id ?? null
+}
+
+function firstAllowedFallback(): string {
+  if (isMaster()) return "/"
+  const allowed = getCurrentUser()?.allowed_pages || []
+  const route = routePageMap.find((r) => allowed.includes(r.id))
+  return route?.path || "/login"
+}
+
 function detectPlatform(pathname: string, search = ""): Platform {
   if (pathname.startsWith("/douyin")) return "douyin"
   if (pathname.startsWith("/tmall")) return "tmall"
@@ -371,6 +412,14 @@ function Layout() {
   useEffect(() => {
     setPlatform(detectPlatform(location.pathname, location.search))
   }, [location.pathname, location.search])
+
+  // 页面级权限守卫：无权限则重定向到第一个有权限的页面
+  useEffect(() => {
+    const pageId = getPageIdByPath(location.pathname)
+    if (pageId && !canAccessPage(pageId)) {
+      navigate(firstAllowedFallback(), { replace: true })
+    }
+  }, [location.pathname])
 
   const handlePlatformChange = (p: Platform) => {
     const tab = platformTabs.find((t) => t.key === p)

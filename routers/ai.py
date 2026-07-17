@@ -25,7 +25,7 @@ def get_config(_: dict = Depends(require_page("ai_wecom"))):
 @router.post("/config", response_model=Dict[str, Any])
 def update_config(
     config: Dict[str, Any],
-    _: dict = Depends(require_page("ai_wecom")),
+    _: dict = Depends(require_master),
 ):
     return services.update_ai_config(config)
 
