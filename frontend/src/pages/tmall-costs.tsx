@@ -1,55 +1,51 @@
-import { useEffect, useState } from "react"
-import { Upload, Download, RotateCcw, Save } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { Save, RefreshCw, Link2, AlertCircle, CheckCircle2, Download, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Select } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
 import {
-  getStores,
   getTmallCosts,
   saveTmallCosts,
-  importTmallCosts,
   refreshTmallCostCodes,
   getTmallUnmappedProducts,
-  type Store,
+  mapTmallProductToMerchantCode,
+  exportTmallCosts,
+  importTmallCosts,
   type TmallCost,
+  type TmallUnmappedRow,
 } from "@/api/client"
 
 export function TmallCostsPage() {
-  const [stores, setStores] = useState<Store[]>([])
-  const [storeName, setStoreName] = useState("")
-  const [tab, setTab] = useState("costs")
   const [costs, setCosts] = useState<TmallCost[]>([])
-  const [unmapped, setUnmapped] = useState<any[]>([])
-  const [file, setFile] = useState<File | null>(null)
-  const [message, setMessage] = useState("")
+  const [unmapped, setUnmapped] = useState<TmallUnmappedRow[]>([])
   const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState("")
+  const [mappingCodes, setMappingCodes] = useState<Record<string, string>>({})
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    getStores("tmall").then((s) => {
-      setStores(s)
-      if (s.length > 0) setStoreName(s[0].name)
-    })
-  }, [])
-
-  useEffect(() => {
-    if (!storeName) return
-    loadData()
-  }, [storeName])
-
-  const loadData = async () => {
+  const fetchData = async () => {
+    setLoading(true)
     try {
-      const costsData = await getTmallCosts()
-      setCosts(costsData || [])
-      const unmappedData = await getTmallUnmappedProducts(undefined, undefined, storeName)
-      setUnmapped(unmappedData || [])
+      const [costsData, unmappedData] = await Promise.all([getTmallCosts(), getTmallUnmappedProducts()])
+      setCosts(costsData)
+      setUnmapped(unmappedData)
     } catch (err: any) {
       setMessage(err.message)
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  const updateCost = (idx: number, field: keyof TmallCost, value: any) => {
+    const next = [...costs]
+    next[idx] = { ...next[idx], [field]: value }
+    setCosts(next)
   }
 
   const handleSave = async () => {
@@ -61,171 +57,259 @@ export function TmallCostsPage() {
     }
   }
 
-  const handleUpload = async () => {
-    if (!file) return
-    setLoading(true)
-    try {
-      await importTmallCosts(file)
-      setMessage("上传成功")
-      setFile(null)
-      await loadData()
-    } catch (err: any) {
-      setMessage(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const handleRefresh = async () => {
-    setLoading(true)
     try {
-      await refreshTmallCostCodes()
-      setMessage("刷新成功")
-      await loadData()
+      const res = await refreshTmallCostCodes()
+      await fetchData()
+      setMessage(`已刷新商家编码，新增 ${res.added} 个`)
     } catch (err: any) {
       setMessage(err.message)
-    } finally {
-      setLoading(false)
     }
   }
 
-  const updateCost = (index: number, field: keyof TmallCost, value: string | number) => {
-    setCosts((prev) => {
-      const next = [...prev]
-      next[index] = { ...next[index], [field]: value }
-      return next
-    })
+  const handleExportPending = async () => {
+    try {
+      const blob = await exportTmallCosts(true)
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `天猫待维护商家编码_${new Date().toISOString().split("T")[0]}.csv`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+      setMessage("导出成功")
+    } catch (err: any) {
+      setMessage(err.message)
+    }
+  }
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const res = await importTmallCosts(file)
+      await fetchData()
+      setMessage(`导入成功，更新 ${res.updated} 条`)
+    } catch (err: any) {
+      setMessage(err.message)
+    } finally {
+      e.target.value = ""
+    }
+  }
+
+  const mappingKey = (row: TmallUnmappedRow) => `${row.product_id}::${row.style_id}`
+
+  const handleMap = async (row: TmallUnmappedRow) => {
+    const key = mappingKey(row)
+    const merchantCode = mappingCodes[key]
+    if (!merchantCode) return
+    try {
+      await mapTmallProductToMerchantCode(
+        row.product_id,
+        merchantCode,
+        row.style_id === "-" ? undefined : row.style_id,
+        row.product_name
+      )
+      setMappingCodes((prev) => ({ ...prev, [key]: "" }))
+      await fetchData()
+      setMessage("映射成功")
+    } catch (err: any) {
+      setMessage(err.message)
+    }
+  }
+
+  const renderCostTable = (rows: TmallCost[], title: string, variant: "warning" | "success", icon: React.ReactNode) => {
+    return (
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold flex items-center gap-2">
+          {icon}
+          {title}
+          <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{rows.length}</span>
+        </h3>
+        <div className="overflow-auto rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>商家编码</TableHead>
+                <TableHead>商品名称</TableHead>
+                <TableHead>商品成本/件</TableHead>
+                <TableHead>物流成本/件</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((cost) => {
+                const idx = costs.findIndex((c) => c.merchant_code === cost.merchant_code)
+                return (
+                  <TableRow key={cost.merchant_code}>
+                    <TableCell className="font-mono text-xs">{cost.merchant_code}</TableCell>
+                    <TableCell>
+                      <Input value={cost.product_name} onChange={(e) => updateCost(idx, "product_name", e.target.value)} />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        value={cost.product_cost}
+                        onChange={(e) => updateCost(idx, "product_cost", parseFloat(e.target.value) || 0)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        value={cost.logistics_cost}
+                        onChange={(e) => updateCost(idx, "logistics_cost", parseFloat(e.target.value) || 0)}
+                      />
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+              {rows.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center text-muted-foreground py-4">
+                    {variant === "warning" ? "暂无待维护商家编码" : "暂无已维护商家编码"}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="space-y-4">
-      <h2 className="text-2xl font-bold">天猫成本</h2>
-
-      {message && <div className="text-sm p-3 rounded-md bg-primary/10">{message}</div>}
+      <h2 className="text-2xl font-bold">天猫成本管理</h2>
+      {message && (
+        <div
+          className={`text-sm p-3 rounded-md ${
+            message.includes("成功") || message.includes("刷新") || message.includes("新增")
+              ? "bg-green-100 text-green-800"
+              : "bg-destructive/10 text-destructive"
+          }`}
+        >
+          {message}
+        </div>
+      )}
 
       <Card>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
-            <div className="space-y-2">
-              <Label>店铺（仅用于未映射商品筛选）</Label>
-              <Select value={storeName} onChange={(e) => setStoreName(e.target.value)}>
-                <option value="">全部店铺</option>
-                {stores.map((s) => (
-                  <option key={s.id} value={s.name}>
-                    {s.name}
-                  </option>
-                ))}
-              </Select>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>商家编码成本（全店铺通用）</CardTitle>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={handleExportPending} disabled={loading}>
+                <Download className="h-4 w-4 mr-1" /> 导出待维护
+              </Button>
+              <Button variant="outline" onClick={handleImportClick} disabled={loading}>
+                <Upload className="h-4 w-4 mr-1" /> 导入成本
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={handleImportFile}
+              />
+              <Button variant="outline" onClick={handleRefresh} disabled={loading}>
+                <RefreshCw className="h-4 w-4 mr-1" /> 刷新编码
+              </Button>
+              <Button onClick={handleSave}>
+                <Save className="h-4 w-4 mr-1" /> 保存
+              </Button>
             </div>
-            <div className="space-y-2">
-              <Label>成本 CSV</Label>
-              <Input type="file" accept=".csv" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-            </div>
-            <Button onClick={handleUpload} disabled={!file || loading}>
-              <Upload className="h-4 w-4 mr-1" /> 上传成本
-            </Button>
-            <Button variant="outline" onClick={handleRefresh} disabled={loading}>
-              <RotateCcw className="h-4 w-4 mr-1" /> 刷新编码
-            </Button>
           </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {renderCostTable(
+            costs.filter((c) => c.product_cost <= 0 || c.logistics_cost <= 0),
+            "待维护商家编码",
+            "warning",
+            <AlertCircle className="h-5 w-5 text-yellow-500" />
+          )}
+          {renderCostTable(
+            costs.filter((c) => c.product_cost > 0 && c.logistics_cost > 0),
+            "已维护商家编码",
+            "success",
+            <CheckCircle2 className="h-5 w-5 text-green-500" />
+          )}
         </CardContent>
       </Card>
 
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
-          <TabsTrigger value="costs">成本管理</TabsTrigger>
-          <TabsTrigger value="unmapped">未映射商品</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="costs" className="space-y-4">
-          <div className="flex gap-2">
-            <Button onClick={handleSave}>
-              <Save className="h-4 w-4 mr-1" /> 保存成本
-            </Button>
-            <a
-              href="/api/tmall/costs/export"
-              className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
-            >
-              <Download className="h-4 w-4 mr-1" /> 下载成本
-            </a>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>商家编码成本</CardTitle>
-              <CardDescription>按商家编码设置单品成本</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-auto max-h-[600px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="text-xs">商家编码</TableHead>
-                      <TableHead className="text-xs">商品名称</TableHead>
-                      <TableHead className="text-xs">产品成本</TableHead>
-                      <TableHead className="text-xs">物流成本</TableHead>
-                      <TableHead className="text-xs">更新时间</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {costs.map((entry, idx) => (
-                      <TableRow key={entry.merchant_code}>
-                        <TableCell className="text-xs font-mono">{entry.merchant_code}</TableCell>
-                        <TableCell className="text-xs max-w-[200px] truncate">{entry.product_name || "-"}</TableCell>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertCircle className="h-5 w-5 text-yellow-500" />
+            未映射商家编码的商品
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {unmapped.length === 0 ? (
+            <div className="text-sm text-muted-foreground py-4 text-center">所有商品都有商家编码或已完成映射</div>
+          ) : (
+            <div className="overflow-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>商品ID</TableHead>
+                    <TableHead>商品名称</TableHead>
+                    <TableHead>样式ID</TableHead>
+                    <TableHead>样式/规格</TableHead>
+                    <TableHead>出现店铺</TableHead>
+                    <TableHead>订单天数</TableHead>
+                    <TableHead>映射到商家编码</TableHead>
+                    <TableHead className="text-right">操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {unmapped.map((row) => {
+                    const key = mappingKey(row)
+                    return (
+                      <TableRow key={key}>
+                        <TableCell className="font-mono text-xs">{row.product_id}</TableCell>
+                        <TableCell>{row.product_name}</TableCell>
+                        <TableCell className="font-mono text-xs">{row.style_id}</TableCell>
+                        <TableCell>{row.style_name}</TableCell>
+                        <TableCell>{row.store_name}</TableCell>
+                        <TableCell>{row.order_count}</TableCell>
                         <TableCell>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            className="w-24 h-8 text-xs"
-                            value={entry.product_cost ?? ""}
-                            onChange={(e) => updateCost(idx, "product_cost", parseFloat(e.target.value))}
-                          />
+                          <div className="flex gap-2">
+                            <Select
+                              value={mappingCodes[key] || ""}
+                              onChange={(e) => setMappingCodes((prev) => ({ ...prev, [key]: e.target.value }))}
+                            >
+                              <option value="">选择或输入</option>
+                              {costs.map((c) => (
+                                <option key={c.merchant_code} value={c.merchant_code}>
+                                  {c.merchant_code} {c.product_name ? `(${c.product_name})` : ""}
+                                </option>
+                              ))}
+                            </Select>
+                            <Input
+                              placeholder="新编码"
+                              className="w-24"
+                              value={mappingCodes[key] || ""}
+                              onChange={(e) => setMappingCodes((prev) => ({ ...prev, [key]: e.target.value }))}
+                            />
+                          </div>
                         </TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            className="w-24 h-8 text-xs"
-                            value={entry.logistics_cost ?? ""}
-                            onChange={(e) => updateCost(idx, "logistics_cost", parseFloat(e.target.value))}
-                          />
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{entry.updated_at || "-"}</TableCell>
-                      </TableRow>
-                    ))}
-                    {costs.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center text-muted-foreground">
-                          暂无成本数据
+                        <TableCell className="text-right">
+                          <Button size="sm" onClick={() => handleMap(row)} disabled={!mappingCodes[key]}>
+                            <Link2 className="h-4 w-4 mr-1" /> 映射
+                          </Button>
                         </TableCell>
                       </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="unmapped">
-          <Card>
-            <CardHeader>
-              <CardTitle>未映射商家编码</CardTitle>
-              <CardDescription>这些商品需要先在成本管理中维护商家编码成本</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {unmapped.length === 0 && <span className="text-muted-foreground text-sm">暂无未映射商品</span>}
-                {unmapped.map((name) => (
-                  <Badge key={name} variant="secondary" className="max-w-[240px] truncate" title={name}>
-                    {name}
-                  </Badge>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
