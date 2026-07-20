@@ -110,11 +110,48 @@ def _mode_str(series: pd.Series) -> str:
     return s.mode().iloc[0]
 
 
+def _aggregate_promo_by_title(product_df: pd.DataFrame) -> pd.DataFrame:
+    """同一商品标题可能对应多个主体ID（换链接/多计划）。
+    订单只能对齐到标题维度，先按标题聚合推广指标，避免合并订单时订单指标被重复计数。"""
+    if product_df is None or product_df.empty or "product_name" not in product_df.columns:
+        return product_df
+    df = product_df.copy()
+    if not df["product_name"].astype(str).duplicated().any():
+        return df
+
+    def _join_ids(x):
+        return ",".join(sorted({str(v).strip() for v in x if str(v).strip() and str(v) != "nan"}))
+
+    agg = {}
+    for c in df.columns:
+        if c == "product_name":
+            continue
+        if c in ("product_id", "plan_id"):
+            agg[c] = _join_ids
+        elif pd.api.types.is_numeric_dtype(df[c]):
+            agg[c] = "sum"
+        else:
+            agg[c] = "first"
+    grouped = df.groupby("product_name", as_index=False, dropna=False).agg(agg)
+    # 保持原列顺序
+    return grouped[[c for c in df.columns if c in grouped.columns]]
+
+
+# 推广口径列 -> 保留列名（合并时业务指标以订单为准，推广口径另存）
+_PROMO_KEEP_COLS = {
+    "gmv": "promo_gmv",
+    "valid_gmv": "promo_valid_gmv",
+    "order_count": "promo_order_count",
+    "valid_order_count": "promo_valid_order_count",
+}
+
+
 def _merge_order_metrics(product_df: pd.DataFrame, orders_df: pd.DataFrame) -> pd.DataFrame:
     """
     将订单数据合并到商品指标中。
-    天猫推广数据按「计划」维度，订单数据按「商品标题」维度，二者不完全对齐。
-    这里按商品标题做外层合并，业务指标以订单为准，推广指标以推广为准。
+    天猫推广数据按「商品（主体ID）」维度，订单数据按「商品标题」维度。
+    按商品标题做外层合并：业务指标（GMV/订单/收入）以订单为准，
+    推广指标（消耗/曝光/点击）以推广为准，推广口径成交另存为 promo_* 列。
     """
     order_summary = _build_order_summary(orders_df)
 
@@ -131,9 +168,19 @@ def _merge_order_metrics(product_df: pd.DataFrame, orders_df: pd.DataFrame) -> p
         result["spend"] = 0.0
         result["exposure"] = 0.0
         result["clicks"] = 0.0
+        for dst in _PROMO_KEEP_COLS.values():
+            result[dst] = 0.0
         return result
 
     df = product_df.copy()
+
+    # 保留推广口径成交指标（gmv 等业务指标后面会被订单口径覆盖）
+    for src, dst in _PROMO_KEEP_COLS.items():
+        if src in df.columns and dst not in df.columns:
+            df[dst] = pd.to_numeric(df[src], errors="coerce").fillna(0)
+
+    # 同标题多主体ID先聚合，避免 outer merge 时订单指标被重复计数
+    df = _aggregate_promo_by_title(df)
 
     if order_summary.empty:
         for col in ["actual_revenue", "quantity", "valid_quantity"]:

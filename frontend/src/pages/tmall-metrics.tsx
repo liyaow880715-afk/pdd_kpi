@@ -24,6 +24,7 @@ const kpiGroups = [
       { key: "spend", label: "消耗", unit: "元" },
       { key: "gmv", label: "成交金额", unit: "元" },
       { key: "valid_gmv", label: "净成交金额", unit: "元" },
+      { key: "promo_gmv", label: "推广成交金额", unit: "元" },
       { key: "actual_revenue", label: "实际收入", unit: "元" },
       { key: "order_count", label: "订单数" },
       { key: "valid_order_count", label: "净订单数" },
@@ -31,6 +32,18 @@ const kpiGroups = [
       { key: "clicks", label: "点击量" },
       { key: "ctr", label: "点击率", unit: "%" },
       { key: "cvr", label: "转化率", unit: "%" },
+      { key: "roi", label: "ROI" },
+      { key: "promo_roi", label: "推广ROI" },
+    ],
+  },
+  {
+    title: "推广效果",
+    items: [
+      { key: "cart_count", label: "加购数" },
+      { key: "collect_count", label: "收藏数" },
+      { key: "new_buyer_count", label: "成交新客数" },
+      { key: "natural_gmv", label: "自然流量转化金额", unit: "元" },
+      { key: "platform_subsidy", label: "平台补贴金额", unit: "元" },
     ],
   },
   {
@@ -54,11 +67,13 @@ const kpiGroups = [
 ]
 
 const productColumns = [
-  { key: "product_id", label: "计划ID" },
-  { key: "product_name", label: "计划名称" },
+  { key: "product_id", label: "商品ID" },
+  { key: "product_name", label: "商品名称" },
   { key: "spend", label: "消耗" },
   { key: "gmv", label: "成交金额" },
   { key: "valid_gmv", label: "净成交金额" },
+  { key: "promo_gmv", label: "推广成交" },
+  { key: "promo_roi", label: "推广ROI" },
   { key: "actual_revenue", label: "实际收入" },
   { key: "order_count", label: "订单数" },
   { key: "valid_order_count", label: "净订单数" },
@@ -71,6 +86,10 @@ const productColumns = [
   { key: "refund_orders", label: "退款订单" },
   { key: "refund_amount", label: "退款金额" },
   { key: "refund_rate", label: "退款率%" },
+  { key: "cart_count", label: "加购数" },
+  { key: "collect_count", label: "收藏数" },
+  { key: "new_buyer_count", label: "新客数" },
+  { key: "natural_gmv", label: "自然成交" },
   { key: "total_cost", label: "总成本" },
   { key: "gross_profit", label: "毛利润" },
   { key: "profit_loss", label: "盈亏" },
@@ -148,7 +167,7 @@ export function TmallMetricsPage() {
           <TabsList className="flex-wrap h-auto">
             <TabsTrigger value="overview">总览 KPI</TabsTrigger>
             <TabsTrigger value="trend">趋势图</TabsTrigger>
-            <TabsTrigger value="products">商品/计划明细</TabsTrigger>
+            <TabsTrigger value="products">商品明细</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
@@ -200,6 +219,7 @@ export function TmallMetricsPage() {
                       { key: "spend", name: "消耗", color: "#ef4444", unit: "元" },
                       { key: "gmv", name: "成交金额", color: "#3b82f6", unit: "元" },
                       { key: "valid_gmv", name: "净成交金额", color: "#22c55e", unit: "元" },
+                      { key: "promo_gmv", name: "推广成交", color: "#a855f7", unit: "元" },
                       { key: "actual_revenue", name: "实际收入", color: "#f97316", unit: "元" },
                     ],
                   },
@@ -221,6 +241,15 @@ export function TmallMetricsPage() {
                       { key: "valid_roi", name: "净ROI", color: "#3b82f6" },
                       { key: "ctr", name: "点击率", color: "#22c55e", unit: "%" },
                       { key: "cvr", name: "转化率", color: "#f59e0b", unit: "%" },
+                    ],
+                  },
+                  {
+                    title: "推广效果",
+                    description: "加购、收藏、成交新客",
+                    metrics: [
+                      { key: "cart_count", name: "加购数", color: "#3b82f6" },
+                      { key: "collect_count", name: "收藏数", color: "#22c55e" },
+                      { key: "new_buyer_count", name: "成交新客数", color: "#f97316" },
                     ],
                   },
                   {
@@ -248,7 +277,7 @@ export function TmallMetricsPage() {
           <TabsContent value="products">
             <Card>
               <CardHeader>
-                <CardTitle>商品/计划指标（{data.product_metrics.length} 条）</CardTitle>
+                <CardTitle>商品指标（{data.product_metrics.length} 条）</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="overflow-auto">
@@ -268,7 +297,7 @@ export function TmallMetricsPage() {
                           {productColumns.map((col) => {
                             const v = row[col.key]
                             const isRate = col.label.includes("%") || col.key.includes("rate") || col.key.includes("roi")
-                            const isMoney = ["spend", "gmv", "valid_gmv", "actual_revenue", "refund_amount", "total_cost", "gross_profit", "profit_loss"].includes(col.key)
+                            const isMoney = ["spend", "gmv", "valid_gmv", "promo_gmv", "natural_gmv", "actual_revenue", "refund_amount", "total_cost", "gross_profit", "profit_loss"].includes(col.key)
                             return (
                               <TableCell key={col.key} className="text-xs whitespace-nowrap">
                                 {col.key === "product_name" ? (

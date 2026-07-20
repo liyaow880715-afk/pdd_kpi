@@ -37,8 +37,15 @@ def compute_overall_kpis(metrics: pd.DataFrame) -> Dict[str, Any]:
     if "valid_quantity" in metrics.columns:
         totals["valid_quantity"] = float(metrics["valid_quantity"].sum())
 
+    for col in ["promo_gmv", "promo_valid_gmv", "promo_order_count", "promo_valid_order_count",
+                "new_buyer_count", "natural_gmv", "platform_subsidy", "subsidy_gmv"]:
+        if col in metrics.columns:
+            totals[col] = float(metrics[col].sum())
+
     totals["roi"] = safe_div(totals["gmv"], totals["spend"])
     totals["valid_roi"] = safe_div(totals["valid_gmv"], totals["spend"])
+    if "promo_gmv" in totals:
+        totals["promo_roi"] = safe_div(totals["promo_gmv"], totals["spend"])
     totals["ctr"] = safe_div(totals["clicks"], totals["exposure"]) * 100
     totals["cvr"] = safe_div(totals["order_count"], totals["clicks"]) * 100
     totals["cpc"] = safe_div(totals["spend"], totals["clicks"])
@@ -113,8 +120,17 @@ def aggregate_product_metrics(daily_list: List[pd.DataFrame]) -> pd.DataFrame:
         "quantity", "valid_quantity",
         "direct_gmv", "indirect_gmv", "direct_order_count", "indirect_order_count",
         "cart_count", "collect_count", "presell_gmv", "presell_order_count",
+        "promo_gmv", "promo_valid_gmv", "promo_order_count", "promo_valid_order_count",
+        "new_buyer_count", "natural_gmv", "platform_subsidy", "subsidy_gmv",
     ]
     agg = {c: "sum" for c in sum_cols if c in combined.columns}
+
+    def _join_ids(x):
+        ids = set()
+        for v in x.dropna().astype(str):
+            ids.update(p for p in (s.strip() for s in v.split(",")) if p and p != "nan")
+        return ",".join(sorted(ids))
+
     agg["product_name"] = lambda x: x.dropna().astype(str).iloc[0] if len(x) else ""
     if "merchant_code" in combined.columns:
         def _first_non_empty_code(x):
@@ -123,9 +139,13 @@ def aggregate_product_metrics(daily_list: List[pd.DataFrame]) -> pd.DataFrame:
             return codes.iloc[0] if len(codes) else ""
         agg["merchant_code"] = _first_non_empty_code
 
-    grouped = combined.groupby("product_id").agg(agg).reset_index()
+    # 按 product_id 聚合：商品标题可能中途改名（如同一链接加【顺丰冷链】前缀），
+    # ID 更稳定；同标题多主体ID 的订单重复计数已在日级合并时按标题聚合解决
+    grouped = combined.groupby("product_id", dropna=False).agg(agg).reset_index()
     grouped["roi"] = grouped.apply(lambda r: safe_div(r["gmv"], r["spend"]), axis=1)
     grouped["valid_roi"] = grouped.apply(lambda r: safe_div(r["valid_gmv"], r["spend"]), axis=1)
+    if "promo_gmv" in grouped.columns:
+        grouped["promo_roi"] = grouped.apply(lambda r: safe_div(r["promo_gmv"], r["spend"]), axis=1)
     grouped["ctr"] = grouped.apply(lambda r: safe_div(r["clicks"], r["exposure"]) * 100, axis=1)
     grouped["cvr"] = grouped.apply(lambda r: safe_div(r["order_count"], r["clicks"]) * 100, axis=1)
     grouped["refund_rate"] = grouped.apply(lambda r: safe_div(r["refund_orders"], r["order_count"]) * 100, axis=1)

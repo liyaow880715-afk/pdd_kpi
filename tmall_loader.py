@@ -126,6 +126,11 @@ def read_promotion_file(file_bytes: bytes, filename: str = "") -> pd.DataFrame:
         "collect_count": "总收藏数",
         "presell_gmv": "总预售成交金额",
         "presell_order_count": "总预售成交笔数",
+        # 商品报表扩展指标
+        "new_buyer_count": "成交新客数",
+        "natural_gmv": "自然流量转化金额",
+        "platform_subsidy": "平台补贴金额",
+        "subsidy_gmv": "补贴引导成交金额",
     }
     for eng, chn in numeric_map.items():
         df[eng] = df[chn].apply(_clean_number) if chn in df.columns else 0.0
@@ -154,6 +159,7 @@ def read_promotion_file(file_bytes: bytes, filename: str = "") -> pd.DataFrame:
         "direct_gmv", "indirect_gmv", "direct_order_count", "indirect_order_count",
         "exposure", "clicks", "presell_gmv", "presell_order_count",
         "cart_count", "collect_count", "refund_orders", "refund_amount",
+        "new_buyer_count", "natural_gmv", "platform_subsidy", "subsidy_gmv",
     ]]
 
 

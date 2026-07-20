@@ -54,7 +54,7 @@ export function TmallImportPage() {
       if (promoFile) formData.append("promo_file", promoFile)
       if (orderFile) formData.append("order_file", orderFile)
       const res = await importTmallData(formData)
-      setMessage(`导入成功：处理日期 ${res.processed_dates.join(", ")}，商品/计划行 ${res.product_rows}，订单行 ${res.order_rows}`)
+      setMessage(`导入成功：处理日期 ${res.processed_dates.join(", ")}，商品行 ${res.product_rows}，订单行 ${res.order_rows}`)
       setPromoFile(null)
       setOrderFile(null)
       await loadRecords()
@@ -92,7 +92,7 @@ export function TmallImportPage() {
       <Card>
         <CardHeader>
           <CardTitle>上传数据</CardTitle>
-          <CardDescription>支持天猫推广计划 CSV 与订单明细 Excel，日期留空时自动拆分</CardDescription>
+          <CardDescription>支持天猫推广报表 CSV（商品报表/计划报表）与订单明细 Excel，日期留空时自动拆分</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
@@ -116,7 +116,7 @@ export function TmallImportPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FileDropzone
               accept=".csv"
-              label="天猫推广计划 CSV"
+              label="天猫推广报表 CSV"
               value={promoFile}
               onChange={setPromoFile}
             />
@@ -149,7 +149,7 @@ export function TmallImportPage() {
                 <TableHead>店铺</TableHead>
                 <TableHead>推广文件</TableHead>
                 <TableHead>订单文件</TableHead>
-                <TableHead>商品/计划行</TableHead>
+                <TableHead>商品行</TableHead>
                 <TableHead>订单行</TableHead>
                 <TableHead>操作</TableHead>
               </TableRow>

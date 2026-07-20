@@ -255,7 +255,7 @@ export function TmallDashboardPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>商品/计划明细（共 {selectedStores.length} 个店铺）</CardTitle>
+            <CardTitle>商品明细（共 {selectedStores.length} 个店铺）</CardTitle>
             <Button
               variant="outline"
               size="sm"
@@ -264,8 +264,8 @@ export function TmallDashboardPage() {
                   `天猫商品明细_${startDate}_${endDate}.csv`,
                   productMetrics,
                   [
-                    { key: "product_id", label: "计划ID" },
-                    { key: "product_name", label: "计划名称" },
+                    { key: "product_id", label: "商品ID" },
+                    { key: "product_name", label: "商品名称" },
                     { key: "spend", label: "消耗" },
                     { key: "gmv", label: "成交金额" },
                     { key: "valid_gmv", label: "净成交金额" },
@@ -289,7 +289,7 @@ export function TmallDashboardPage() {
             <table className="w-full text-sm">
               <thead className="bg-muted">
                 <tr>
-                  <th className="text-left px-3 py-2">计划</th>
+                  <th className="text-left px-3 py-2">商品</th>
                   <th className="text-right px-3 py-2">消耗</th>
                   <th className="text-right px-3 py-2">成交金额</th>
                   <th className="text-right px-3 py-2">净成交</th>
