@@ -104,9 +104,12 @@ def read_promotion_file(file_bytes: bytes, filename: str = "") -> pd.DataFrame:
     df.columns = [str(c).strip() for c in df.columns]
 
     # 列名统一
-    df["date"] = df.get("日期", "").apply(_parse_date)
-    df["plan_id"] = df.get("计划ID", "").astype(str)
-    df["plan_name"] = df.get("计划名字", "").astype(str)
+    df["date"] = df["日期"].apply(_parse_date) if "日期" in df.columns else None
+    # 兼容两种报表：商品报表（主体ID/主体名称）与计划报表（计划ID/计划名字）
+    id_col = _pick_column(df, ["主体ID", "计划ID"])
+    name_col = _pick_column(df, ["主体名称", "计划名字", "计划名称"])
+    df["plan_id"] = df[id_col].astype(str) if id_col else ""
+    df["plan_name"] = df[name_col].astype(str) if name_col else ""
 
     # 核心推广指标
     numeric_map = {
