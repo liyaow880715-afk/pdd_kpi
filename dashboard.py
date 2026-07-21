@@ -507,7 +507,7 @@ def render_kpis(kpis: Dict):
     with c3:
         kpi_card("有效订单 GMV", f"¥{kpis['valid_order_gmv']:,.2f}", "剔除退款/取消", "info")
     with c4:
-        kpi_card("有效商家实收", f"¥{kpis['valid_merchant_income']:,.2f}", "剔除退款/取消", "good")
+        kpi_card("有效商家实收", f"¥{kpis['valid_merchant_income']:,.2f}", "剔除退款/取消/待付款，已扣0.6%技术费", "good")
 
     c5, c6, c7, c8 = st.columns(4)
     roi_status = "good" if kpis["real_roi"] >= 2.5 else ("warn" if kpis["real_roi"] >= 1.5 else "bad")

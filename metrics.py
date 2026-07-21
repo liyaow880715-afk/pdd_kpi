@@ -7,6 +7,10 @@ import numpy as np
 from typing import Dict, List
 
 
+# 平台技术服务费费率：按商家实收的 0.6% 从有效商家实收中扣除
+PLATFORM_FEE_RATE = 0.006
+
+
 def safe_div(numerator, denominator, default=0.0):
     """安全除法，避免除以 0"""
     if denominator == 0 or pd.isna(denominator):
@@ -98,7 +102,15 @@ def compute_product_metrics(merged: pd.DataFrame) -> pd.DataFrame:
         if c not in df.columns:
             df[c] = 0
 
-    # 如果指标列已经完整（Parquet 中已预计算），直接返回，避免逐行 apply
+    # 平台技术服务费：有效商家实收 = 原有效实收 - 商家实收 * 0.6%
+    # 注意：存储中的 valid_merchant_income 始终为原始值，扣费只在计算时应用；
+    # 用 _fee_applied 标记保证幂等（本函数可能对同一批数据被调用两次）
+    if "merchant_income" in df.columns and "valid_merchant_income" in df.columns:
+        if "_fee_applied" not in df.columns or not df["_fee_applied"].fillna(0).eq(1).all():
+            df["valid_merchant_income"] = df["valid_merchant_income"] - df["merchant_income"] * PLATFORM_FEE_RATE
+            df["_fee_applied"] = 1
+
+    # 口径变化后，存储的预计算衍生列一律作废，统一重算
     _precomputed_cols = [
         "promo_roi", "promo_cost_per_order", "ctr", "click_to_order_rate",
         "exposure_to_order_rate", "cpc", "cpm", "promo_gmv_ratio",
@@ -112,8 +124,7 @@ def compute_product_metrics(merged: pd.DataFrame) -> pd.DataFrame:
         "organic_ratio_valid_orders", "avg_order_gmv", "avg_valid_order_gmv",
         "avg_order_income", "avg_valid_order_income",
     ]
-    if all(c in df.columns for c in _precomputed_cols):
-        return df
+    df = df.drop(columns=[c for c in _precomputed_cols if c in df.columns])
 
     # 推广侧指标
     df["promo_roi"] = df.apply(

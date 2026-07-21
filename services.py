@@ -219,6 +219,11 @@ def _compute_and_save_daily(
     orders["store_name"] = store_name
 
     metrics = compute_product_metrics(merged)
+    # valid_merchant_income 在计算时已扣平台技术费；存储时还原为原始值，
+    # 扣费统一在 compute_product_metrics 中应用，避免读取/汇总时重复扣减
+    if "valid_merchant_income" in metrics.columns and "valid_merchant_income" in merged.columns:
+        metrics["valid_merchant_income"] = merged["valid_merchant_income"].to_numpy()
+    metrics = metrics.drop(columns=["_fee_applied"], errors="ignore")
     save_daily_data(
         metrics,
         style_metrics,
