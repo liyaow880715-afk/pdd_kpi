@@ -79,6 +79,14 @@ def _is_cancel(row) -> int:
     return 0
 
 
+def _is_unpaid(row) -> int:
+    """判断是否为未付款订单（待付款=未成交，不计入有效指标）"""
+    status = str(row.get("order_status", ""))
+    if "待付款" in status or "未付款" in status:
+        return 1
+    return 0
+
+
 def _parse_order_date(val) -> Optional[str]:
     """从订单时间字符串中解析日期部分（YYYY-MM-DD）"""
     if pd.isna(val):
@@ -211,7 +219,8 @@ def preprocess_orders(df: pd.DataFrame, mapping: Dict[str, Optional[str]]) -> pd
     # 退款/取消标记
     df["is_refund"] = df.apply(_is_refund, axis=1)
     df["is_cancel"] = df.apply(_is_cancel, axis=1)
-    df["is_valid"] = ((df["is_refund"] == 0) & (df["is_cancel"] == 0)).astype(int)
+    df["is_unpaid"] = df.apply(_is_unpaid, axis=1)
+    df["is_valid"] = ((df["is_refund"] == 0) & (df["is_cancel"] == 0) & (df["is_unpaid"] == 0)).astype(int)
 
     # 退款阶段细分
     df["refund_stage"] = df.apply(

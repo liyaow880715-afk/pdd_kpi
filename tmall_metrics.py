@@ -70,7 +70,7 @@ def build_product_metrics_from_orders(orders: pd.DataFrame, date: str) -> pd.Dat
     df["compensation_amount"] = pd.to_numeric(df.get("compensation_amount", pd.Series(0, index=df.index)), errors="coerce").fillna(0)
 
     # 净订单：买家有实际付款且订单未关闭/取消
-    invalid_status = df["order_status"].astype(str).str.contains("关闭|取消|交易关闭", na=False)
+    invalid_status = df["order_status"].astype(str).str.contains("关闭|取消|交易关闭|待付款|未付款", na=False)
     df["is_valid"] = (df["actual_revenue"] > 0) & (~invalid_status)
     df["is_refund"] = df["refund_amount"] > 0
     df["net_revenue"] = df["actual_revenue"] - df["refund_amount"] - df["compensation_amount"]
