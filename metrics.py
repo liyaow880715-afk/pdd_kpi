@@ -102,9 +102,10 @@ def compute_product_metrics(merged: pd.DataFrame) -> pd.DataFrame:
         if c not in df.columns:
             df[c] = 0
 
-    # 平台技术服务费（单独展示，不扣减有效商家实收；在毛利中扣除）
-    if "merchant_income" in df.columns:
-        df["platform_fee"] = df["merchant_income"] * PLATFORM_FEE_RATE
+    # 平台技术服务费 = 有效商家实收 * 0.6%（剔除退款/取消/待付款订单）
+    # 单独展示，不扣减有效商家实收；在毛利中扣除
+    if "valid_merchant_income" in df.columns:
+        df["platform_fee"] = df["valid_merchant_income"] * PLATFORM_FEE_RATE
 
     # 预计算衍生列一律作废，统一重算（保证口径与代码一致）
     _precomputed_cols = [
