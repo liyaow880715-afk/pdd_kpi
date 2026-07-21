@@ -102,15 +102,11 @@ def compute_product_metrics(merged: pd.DataFrame) -> pd.DataFrame:
         if c not in df.columns:
             df[c] = 0
 
-    # 平台技术服务费：有效商家实收 = 原有效实收 - 商家实收 * 0.6%
-    # 注意：存储中的 valid_merchant_income 始终为原始值，扣费只在计算时应用；
-    # 用 _fee_applied 标记保证幂等（本函数可能对同一批数据被调用两次）
-    if "merchant_income" in df.columns and "valid_merchant_income" in df.columns:
-        if "_fee_applied" not in df.columns or not df["_fee_applied"].fillna(0).eq(1).all():
-            df["valid_merchant_income"] = df["valid_merchant_income"] - df["merchant_income"] * PLATFORM_FEE_RATE
-            df["_fee_applied"] = 1
+    # 平台技术服务费（单独展示，不扣减有效商家实收；在毛利中扣除）
+    if "merchant_income" in df.columns:
+        df["platform_fee"] = df["merchant_income"] * PLATFORM_FEE_RATE
 
-    # 口径变化后，存储的预计算衍生列一律作废，统一重算
+    # 预计算衍生列一律作废，统一重算（保证口径与代码一致）
     _precomputed_cols = [
         "promo_roi", "promo_cost_per_order", "ctr", "click_to_order_rate",
         "exposure_to_order_rate", "cpc", "cpm", "promo_gmv_ratio",
@@ -260,6 +256,7 @@ def compute_overall_kpis(metrics: pd.DataFrame) -> Dict[str, float]:
         "valid_order_gmv": metrics["valid_order_gmv"].sum(),
         "merchant_income": metrics["merchant_income"].sum(),
         "valid_merchant_income": metrics["valid_merchant_income"].sum(),
+        "platform_fee": metrics["platform_fee"].sum() if "platform_fee" in metrics.columns else 0.0,
         "refund_count": metrics["refund_count"].sum(),
         "cancel_count": metrics["cancel_count"].sum(),
         "refund_unshipped_count": metrics.get("refund_unshipped_count", pd.Series(0, index=metrics.index)).sum(),
@@ -278,6 +275,7 @@ def compute_overall_kpis(metrics: pd.DataFrame) -> Dict[str, float]:
         "valid_order_gmv": totals["valid_order_gmv"],
         "merchant_income": totals["merchant_income"],
         "valid_merchant_income": totals["valid_merchant_income"],
+        "platform_fee": totals["platform_fee"],
         "promo_roi": safe_div(totals["promo_gmv"], totals["promo_spend"]),
         "real_roi": safe_div(totals["valid_merchant_income"], totals["promo_spend"]),
         "valid_order_gmv_roi": safe_div(totals["valid_order_gmv"], totals["promo_spend"]),
@@ -343,7 +341,7 @@ def aggregate_product_metrics(daily_metrics_list: List[pd.DataFrame]) -> pd.Data
         "promo_spend", "promo_gmv", "promo_orders",
         "exposure", "clicks",
         "order_count", "valid_order_count", "order_gmv", "valid_order_gmv",
-        "merchant_income", "valid_merchant_income",
+        "merchant_income", "valid_merchant_income", "platform_fee",
         "refund_count", "cancel_count", "quantity", "valid_quantity",
         "organic_orders", "organic_gmv", "organic_merchant_income", "organic_valid_order_count",
     ]

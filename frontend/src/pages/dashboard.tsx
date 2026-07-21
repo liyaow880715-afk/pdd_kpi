@@ -67,6 +67,7 @@ const kpiGroups = [
     items: [
       { key: "total_product_cost", label: "商品成本", unit: "元" },
       { key: "total_logistics_cost", label: "物流成本", unit: "元" },
+      { key: "platform_fee", label: "平台技术费", unit: "元" },
       { key: "total_cost", label: "总成本", unit: "元" },
       { key: "link_gross_profit", label: "链接毛利", unit: "元" },
       { key: "profit_loss", label: "盈亏", unit: "元" },

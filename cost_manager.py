@@ -504,8 +504,10 @@ def apply_costs_to_metrics(metrics: pd.DataFrame, store_name: Optional[str], ord
 
     df["valid_merchant_income"] = pd.to_numeric(df.get("valid_merchant_income", 0), errors="coerce").fillna(0)
     df["promo_spend"] = pd.to_numeric(df.get("promo_spend", 0), errors="coerce").fillna(0)
+    # 平台技术服务费在毛利中扣除（不影响有效商家实收）
+    df["platform_fee"] = pd.to_numeric(df.get("platform_fee", 0), errors="coerce").fillna(0)
 
-    df["link_gross_profit"] = df["valid_merchant_income"] - df["total_cost"]
+    df["link_gross_profit"] = df["valid_merchant_income"] - df["total_cost"] - df["platform_fee"]
     df["profit_loss"] = df["link_gross_profit"] - df["promo_spend"]
     df["gross_margin_rate"] = df.apply(
         lambda r: (r["link_gross_profit"] / r["valid_merchant_income"] * 100)
