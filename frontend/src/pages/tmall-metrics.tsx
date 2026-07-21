@@ -34,6 +34,7 @@ const kpiGroups = [
       { key: "cvr", label: "转化率", unit: "%" },
       { key: "roi", label: "ROI" },
       { key: "promo_roi", label: "推广ROI" },
+      { key: "promo_cost_ratio", label: "投流费比", unit: "%" },
     ],
   },
   {
@@ -83,6 +84,7 @@ const productColumns = [
   { key: "cvr", label: "转化率%" },
   { key: "roi", label: "ROI" },
   { key: "valid_roi", label: "净ROI" },
+  { key: "promo_cost_ratio", label: "投流费比%" },
   { key: "refund_orders", label: "退款订单" },
   { key: "refund_amount", label: "退款金额" },
   { key: "refund_rate", label: "退款率%" },

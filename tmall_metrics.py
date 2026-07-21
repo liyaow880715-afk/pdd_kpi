@@ -46,6 +46,8 @@ def compute_overall_kpis(metrics: pd.DataFrame) -> Dict[str, Any]:
     totals["valid_roi"] = safe_div(totals["valid_gmv"], totals["spend"])
     if "promo_gmv" in totals:
         totals["promo_roi"] = safe_div(totals["promo_gmv"], totals["spend"])
+    # 投流费比 = 消耗 / 净成交金额
+    totals["promo_cost_ratio"] = safe_div(totals["spend"], totals["valid_gmv"]) * 100
     totals["ctr"] = safe_div(totals["clicks"], totals["exposure"]) * 100
     totals["cvr"] = safe_div(totals["order_count"], totals["clicks"]) * 100
     totals["cpc"] = safe_div(totals["spend"], totals["clicks"])
@@ -146,6 +148,8 @@ def aggregate_product_metrics(daily_list: List[pd.DataFrame]) -> pd.DataFrame:
     grouped["valid_roi"] = grouped.apply(lambda r: safe_div(r["valid_gmv"], r["spend"]), axis=1)
     if "promo_gmv" in grouped.columns:
         grouped["promo_roi"] = grouped.apply(lambda r: safe_div(r["promo_gmv"], r["spend"]), axis=1)
+    # 投流费比 = 消耗 / 净成交金额
+    grouped["promo_cost_ratio"] = grouped.apply(lambda r: safe_div(r["spend"], r["valid_gmv"]) * 100, axis=1)
     grouped["ctr"] = grouped.apply(lambda r: safe_div(r["clicks"], r["exposure"]) * 100, axis=1)
     grouped["cvr"] = grouped.apply(lambda r: safe_div(r["order_count"], r["clicks"]) * 100, axis=1)
     grouped["refund_rate"] = grouped.apply(lambda r: safe_div(r["refund_orders"], r["order_count"]) * 100, axis=1)
