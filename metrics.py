@@ -332,10 +332,10 @@ def aggregate_product_metrics(daily_metrics_list: List[pd.DataFrame]) -> pd.Data
     if combined.empty:
         return combined
 
-    # 分组键：优先用 product_id，否则 product_name
+    # 分组键：优先用 product_id（同一商品改标题也能合并），否则 product_name
     group_cols = ["product_name"]
     if "product_id" in combined.columns and combined["product_id"].notna().any():
-        group_cols = ["product_id", "product_name"]
+        group_cols = ["product_id"]
 
     # 需要求和的字段
     sum_cols = [
@@ -358,8 +358,15 @@ def aggregate_product_metrics(daily_metrics_list: List[pd.DataFrame]) -> pd.Data
 
     agg = combined.groupby(group_cols, as_index=False)[sum_cols].sum()
 
+    # 商品名称：同一商品ID可能有多个标题（改名/加前缀），拼接去重展示
+    if "product_name" in combined.columns and "product_name" not in agg.columns:
+        names = combined.groupby(group_cols, as_index=False)["product_name"].agg(
+            lambda x: " / ".join(dict.fromkeys(t for t in x.dropna().astype(str) if t.strip()))
+        )
+        agg = agg.merge(names, on=group_cols, how="left")
+
     # 保留 product_id 用于后续匹配商家编码等
-    if "product_id" in agg.columns:
+    if "product_id" in combined.columns and "product_id" not in agg.columns:
         first_ids = combined.groupby(group_cols, as_index=False)["product_id"].first()
         agg = agg.merge(first_ids, on=group_cols, how="left", suffixes=("", "_first"))
         if "product_id_first" in agg.columns:
