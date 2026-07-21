@@ -29,6 +29,7 @@ from cost_manager import (
     append_new_merchant_codes,
     import_costs_from_csv,
     export_costs_to_csv,
+    _normalize_product_id,
     import_global_costs_from_csv,
     export_global_costs_to_csv,
     set_product_merchant_mapping,
@@ -482,9 +483,14 @@ def load_analysis_data(
     metrics = aggregate_product_metrics(product_dfs)
     metrics = merge_refund_stage_counts(metrics, order_dfs)
     metrics = compute_product_metrics(metrics)
-    metrics = apply_costs_to_metrics(metrics, store_name)
+    all_orders = pd.concat(order_dfs, ignore_index=True) if order_dfs else None
+    metrics = apply_costs_to_metrics(metrics, store_name, orders=all_orders)
     style_metrics = aggregate_style_metrics(order_dfs) if order_dfs else pd.DataFrame()
     kpis = compute_overall_kpis(metrics)
+
+    # 商品ID按文本返回，避免前端显示成科学计数/带逗号数字
+    if "product_id" in metrics.columns:
+        metrics["product_id"] = metrics["product_id"].apply(_normalize_product_id)
 
     # 把 float nan 转为 None，避免 JSON 序列化问题
     return _json_safe({
@@ -511,6 +517,7 @@ def load_trend_data(
             continue
 
         dfs: List[pd.DataFrame] = []
+        order_dfs: List[pd.DataFrame] = []
         for d in dates:
             try:
                 p, _ = load_daily_data(d, store)
@@ -518,6 +525,14 @@ def load_trend_data(
                     p = p.copy()
                     p["date"] = d
                     dfs.append(p)
+            except Exception:
+                continue
+            try:
+                o = load_daily_orders(d, store)
+                if not o.empty:
+                    o = o.copy()
+                    o["date"] = d
+                    order_dfs.append(o)
             except Exception:
                 continue
         if not dfs:
@@ -528,7 +543,8 @@ def load_trend_data(
         combined = merge_refund_stage_counts(combined, [])
         # 趋势统一走成本回退逻辑，确保和分析页汇总结果一致
         combined["merchant_code"] = ""
-        combined = apply_costs_to_metrics(combined, store)
+        combined_orders = pd.concat(order_dfs, ignore_index=True) if order_dfs else None
+        combined = apply_costs_to_metrics(combined, store, orders=combined_orders)
 
         for d, g in combined.groupby("date", sort=True):
             day_kpis = compute_overall_kpis(g)

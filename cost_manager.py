@@ -320,11 +320,52 @@ def _build_style_weighted_cost(
     return result
 
 
-def apply_costs_to_metrics(metrics: pd.DataFrame, store_name: Optional[str]) -> pd.DataFrame:
+def compute_order_level_costs(orders: pd.DataFrame, store_name: Optional[str]) -> pd.DataFrame:
+    """按订单规格（商家编码）分别计价，并汇总到商品维度。
+    返回列：product_id, [date], total_product_cost, total_logistics_cost。
+    未录入成本的编码按 0 计（与商品级缺失成本行为一致）。"""
+    if orders is None or orders.empty or "merchant_code" not in orders.columns:
+        return pd.DataFrame()
+    o = orders.copy()
+    if "is_valid" in o.columns:
+        o = o[o["is_valid"] == 1]
+    if o.empty or "product_id" not in o.columns:
+        return pd.DataFrame()
+
+    config = load_cost_config()
+    store = _normalize_store(store_name)
+    merged_costs = {**config.get("merchant_costs", {}).get(store, {}), **load_global_costs(config)}
+
+    o["_pid"] = o["product_id"].apply(_normalize_product_id)
+    o["_code"] = o["merchant_code"].astype(str).str.strip().replace(["None", "nan", "NaN"], "")
+    # 手动维护的映射优先（规格 > 商品）
+    style_col = "style_id" if "style_id" in o.columns else None
+    o["_code"] = o.apply(
+        lambda r: lookup_global_merchant_code(
+            r["product_id"], r.get(style_col) if style_col else None, config
+        ) or r["_code"],
+        axis=1,
+    )
+    pc_map = {k: float(v.get("product_cost", 0) or 0) for k, v in merged_costs.items()}
+    lc_map = {k: float(v.get("logistics_cost", 0) or 0) for k, v in merged_costs.items()}
+    o["_qty"] = pd.to_numeric(o.get("quantity", 0), errors="coerce").fillna(0)
+    o["_pc"] = o["_code"].map(pc_map).fillna(0) * o["_qty"]
+    o["_lc"] = o["_code"].map(lc_map).fillna(0) * o["_qty"]
+
+    group_cols = ["_pid"] + (["date"] if "date" in o.columns else [])
+    g = o.groupby(group_cols, as_index=False).agg(
+        total_product_cost=("_pc", "sum"),
+        total_logistics_cost=("_lc", "sum"),
+    )
+    return g.rename(columns={"_pid": "product_id"})
+
+
+def apply_costs_to_metrics(metrics: pd.DataFrame, store_name: Optional[str], orders: Optional[pd.DataFrame] = None) -> pd.DataFrame:
     """
     将成本配置合并到商品指标表，并计算链接毛利与盈亏。
     优先使用全局成本配置，再回退到店铺级成本配置。
     如果指标表里没有 merchant_code，会尝试用 product_id 从历史订单反查。
+    传入 orders 时，成本按订单规格（商家编码）分别计价，覆盖商品级估算。
     """
     if metrics is None or metrics.empty:
         return metrics
@@ -437,6 +478,28 @@ def apply_costs_to_metrics(metrics: pd.DataFrame, store_name: Optional[str]) -> 
 
     df["total_product_cost"] = df["product_cost_unit"] * df["cost_quantity"]
     df["total_logistics_cost"] = df["logistics_cost_unit"] * df["cost_quantity"]
+
+    # 按规格分别计价：提供订单数据时，以订单实际成本覆盖商品级估算
+    if orders is not None and not orders.empty and "product_id" in df.columns:
+        oc = compute_order_level_costs(orders, store_name)
+        if not oc.empty:
+            use_date = "date" in df.columns and "date" in oc.columns
+            if use_date:
+                keys = list(zip(oc["product_id"], oc["date"].astype(str)))
+            else:
+                keys = oc["product_id"].tolist()
+            pc_dict = dict(zip(keys, oc["total_product_cost"]))
+            lc_dict = dict(zip(keys, oc["total_logistics_cost"]))
+            df["_pid"] = df["product_id"].apply(_normalize_product_id)
+            if use_date:
+                df_keys = list(zip(df["_pid"], df["date"].astype(str)))
+                df["total_product_cost"] = pd.Series([pc_dict.get(k, 0.0) for k in df_keys], index=df.index)
+                df["total_logistics_cost"] = pd.Series([lc_dict.get(k, 0.0) for k in df_keys], index=df.index)
+            else:
+                df["total_product_cost"] = df["_pid"].map(pc_dict).fillna(0.0)
+                df["total_logistics_cost"] = df["_pid"].map(lc_dict).fillna(0.0)
+            df = df.drop(columns=["_pid"])
+
     df["total_cost"] = df["total_product_cost"] + df["total_logistics_cost"]
 
     df["valid_merchant_income"] = pd.to_numeric(df.get("valid_merchant_income", 0), errors="coerce").fillna(0)
