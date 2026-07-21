@@ -185,6 +185,19 @@ const kpiGroups = [
   },
 ]
 
+// 导出 CSV 时的附加列（样式明细专属字段，商品行大多也有）
+const exportExtraColumns = [
+  { key: "order_gmv", label: "订单GMV" },
+  { key: "merchant_income", label: "商家实收" },
+  { key: "quantity", label: "件数" },
+  { key: "valid_quantity", label: "有效件数" },
+  { key: "refund_count", label: "退款数" },
+  { key: "cancel_count", label: "取消数" },
+  { key: "refund_unshipped_count", label: "未发货退款" },
+  { key: "refund_shipped_count", label: "已发货退款" },
+  { key: "refund_received_count", label: "已收货退款" },
+]
+
 const productColumns = [
   { key: "product_id", label: "商品ID" },
   { key: "product_name", label: "商品名称" },
@@ -492,7 +505,7 @@ export function MetricsPage() {
                           })
                         })
                       })
-                      downloadCsv(`商品明细_${storeName}_${startDate}_${endDate}.csv`, rows, productColumns)
+                      downloadCsv(`商品明细_${storeName}_${startDate}_${endDate}.csv`, rows, [...productColumns, ...exportExtraColumns])
                     }}
                     disabled={data.product_metrics.length === 0}
                   >
