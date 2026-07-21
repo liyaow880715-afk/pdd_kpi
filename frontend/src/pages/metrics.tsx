@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from "react"
-import { Search, Eye, EyeOff, ChevronDown, ChevronRight } from "lucide-react"
+import { Search, Eye, EyeOff, ChevronDown, ChevronRight, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -20,6 +20,27 @@ function formatNumber(v: any, digits = 2) {
 /** 统一 ID 为文本形式（去掉浮点 .0 后缀） */
 function normId(v: any): string {
   return String(v ?? "").replace(/\.0$/, "")
+}
+
+function downloadCsv(filename: string, rows: Record<string, any>[], headers: { key: string; label: string }[]) {
+  if (rows.length === 0) return
+  const escape = (v: any) => {
+    const s = v === null || v === undefined ? "" : String(v)
+    if (s.includes(",") || s.includes("\n") || s.includes('"')) {
+      return `"${s.replace(/"/g, '""')}"`
+    }
+    return s
+  }
+  const lines = [headers.map((h) => h.label).join(","), ...rows.map((r) => headers.map((h) => escape(r[h.key])).join(","))]
+  const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8" })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
 }
 
 const MONEY_COLS = ["promo_spend", "promo_gmv", "valid_order_gmv", "valid_merchant_income", "order_gmv", "merchant_income", "total_product_cost", "total_logistics_cost", "platform_fee", "total_cost", "link_gross_profit", "profit_loss", "cpc", "avg_order_gmv", "avg_valid_order_income"]
@@ -451,9 +472,33 @@ export function MetricsPage() {
           <TabsContent value="products">
             <Card>
               <CardHeader>
-                <CardTitle>
-                  商品指标（{data.product_metrics.length} 个商品 / {data.style_metrics.length} 个规格）
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle>
+                    商品指标（{data.product_metrics.length} 个商品 / {data.style_metrics.length} 个规格）
+                  </CardTitle>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const rows: any[] = []
+                      data.product_metrics.forEach((row: any) => {
+                        rows.push(row)
+                        const pid = normId(row.product_id)
+                        ;(stylesByProduct[pid] || []).forEach((s: any) => {
+                          rows.push({
+                            ...s,
+                            product_id: normId(s.style_id),
+                            product_name: `↳ ${s.style_name || s.style_id || "未命名规格"}`,
+                          })
+                        })
+                      })
+                      downloadCsv(`商品明细_${storeName}_${startDate}_${endDate}.csv`, rows, productColumns)
+                    }}
+                    disabled={data.product_metrics.length === 0}
+                  >
+                    <Download className="h-4 w-4 mr-1" /> 导出 CSV
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="overflow-auto">
