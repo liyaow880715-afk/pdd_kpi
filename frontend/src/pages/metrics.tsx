@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react"
-import { Search, Eye, EyeOff } from "lucide-react"
+import { Fragment, useEffect, useState } from "react"
+import { Search, Eye, EyeOff, ChevronDown, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -15,6 +15,42 @@ function formatNumber(v: any, digits = 2) {
   if (v === null || v === undefined || Number.isNaN(v)) return "-"
   if (typeof v === "number") return v.toLocaleString("zh-CN", { maximumFractionDigits: digits })
   return v
+}
+
+/** 统一 ID 为文本形式（去掉浮点 .0 后缀） */
+function normId(v: any): string {
+  return String(v ?? "").replace(/\.0$/, "")
+}
+
+const MONEY_COLS = ["promo_spend", "promo_gmv", "valid_order_gmv", "valid_merchant_income", "order_gmv", "merchant_income", "total_product_cost", "total_logistics_cost", "platform_fee", "total_cost", "link_gross_profit", "profit_loss", "cpc", "avg_order_gmv", "avg_valid_order_income"]
+
+/** 商品/规格明细单元格渲染 */
+function renderMetricCell(
+  row: any,
+  col: { key: string; label: string },
+  opts: { isExpander?: boolean; isOpen?: boolean; onToggle?: () => void } = {},
+) {
+  const v = row[col.key]
+  const isRate = col.label.includes("%") || col.key.includes("rate") || col.key.includes("roi")
+  const isMoney = MONEY_COLS.includes(col.key)
+  return (
+    <TableCell key={col.key} className="text-xs whitespace-nowrap">
+      {col.key === "product_name" || col.key === "style_name" ? (
+        <span className="max-w-[200px] truncate inline-block">{String(v ?? "")}</span>
+      ) : opts.isExpander ? (
+        <button onClick={opts.onToggle} className="inline-flex items-center gap-1 hover:text-primary">
+          {opts.isOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+          {String(v ?? "")}
+        </button>
+      ) : isRate ? (
+        <Badge variant={(v > 30 && col.key.includes("refund")) || (v < 1 && col.key.includes("roi")) ? "destructive" : "default"}>
+          {formatNumber(v)}
+        </Badge>
+      ) : (
+        formatNumber(v, isMoney ? 2 : 0)
+      )}
+    </TableCell>
+  )
 }
 
 function KpiCard({
@@ -166,23 +202,6 @@ const productColumns = [
   { key: "profit_loss_rate", label: "盈亏率%" },
 ]
 
-const styleColumns = [
-  { key: "product_id", label: "商品ID" },
-  { key: "style_id", label: "样式ID" },
-  { key: "style_name", label: "样式名称" },
-  { key: "order_count", label: "订单数" },
-  { key: "valid_order_count", label: "有效订单" },
-  { key: "order_gmv", label: "GMV" },
-  { key: "valid_order_gmv", label: "有效GMV" },
-  { key: "merchant_income", label: "收入" },
-  { key: "valid_merchant_income", label: "有效收入" },
-  { key: "refund_count", label: "退款数" },
-  { key: "cancel_count", label: "取消数" },
-  { key: "refund_unshipped_count", label: "未发货退款" },
-  { key: "refund_shipped_count", label: "已发货退款" },
-  { key: "refund_received_count", label: "已收货退款" },
-]
-
 export function MetricsPage() {
   const [stores, setStores] = useState<Store[]>([])
   const [storeName, setStoreName] = useState("")
@@ -192,6 +211,19 @@ export function MetricsPage() {
   const [trend, setTrend] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState("overview")
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+
+  const toggleExpand = (id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
   const [hiddenKpis, setHiddenKpis] = useState<Set<string>>(() => {
     try {
       return new Set(JSON.parse(localStorage.getItem("pdd_hidden_kpis") || "[]"))
@@ -236,6 +268,13 @@ export function MetricsPage() {
 
   const kpis = data?.kpis || {}
 
+  // 规格明细按商品ID分组，用于商品明细的展开子行
+  const stylesByProduct: Record<string, any[]> = {}
+  ;(data?.style_metrics || []).forEach((s: any) => {
+    const k = normId(s.product_id)
+    ;(stylesByProduct[k] = stylesByProduct[k] || []).push(s)
+  })
+
   return (
     <div className="space-y-4">
       <h2 className="text-2xl font-bold">指标分析</h2>
@@ -274,7 +313,6 @@ export function MetricsPage() {
             <TabsTrigger value="overview">总览 KPI</TabsTrigger>
             <TabsTrigger value="trend">趋势</TabsTrigger>
             <TabsTrigger value="products">商品明细</TabsTrigger>
-            <TabsTrigger value="styles">样式明细</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
@@ -413,7 +451,9 @@ export function MetricsPage() {
           <TabsContent value="products">
             <Card>
               <CardHeader>
-                <CardTitle>商品指标（{data.product_metrics.length} 条）</CardTitle>
+                <CardTitle>
+                  商品指标（{data.product_metrics.length} 个商品 / {data.style_metrics.length} 个规格）
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="overflow-auto">
@@ -428,72 +468,38 @@ export function MetricsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {data.product_metrics.map((row: any, idx: number) => (
-                        <TableRow key={idx}>
-                          {productColumns.map((col) => {
-                            const v = row[col.key]
-                            const isRate = col.label.includes("%") || col.key.includes("rate") || col.key.includes("roi")
-                            const isMoney = ["promo_spend", "promo_gmv", "valid_order_gmv", "valid_merchant_income", "order_gmv", "merchant_income", "total_product_cost", "total_logistics_cost", "platform_fee", "total_cost", "link_gross_profit", "profit_loss", "cpc", "avg_order_gmv", "avg_valid_order_income"].includes(col.key)
-                            return (
-                              <TableCell key={col.key} className="text-xs whitespace-nowrap">
-                                {col.key === "product_name" || col.key === "style_name" ? (
-                                  <span className="max-w-[200px] truncate inline-block">{String(v ?? "")}</span>
-                                ) : isRate ? (
-                                  <Badge variant={(v > 30 && col.key.includes("refund")) || (v < 1 && col.key.includes("roi")) ? "destructive" : "default"}>
-                                    {formatNumber(v)}
-                                  </Badge>
-                                ) : (
-                                  formatNumber(v, isMoney ? 2 : 0)
-                                )}
-                              </TableCell>
-                            )
-                          })}
-                        </TableRow>
-                      ))}
+                      {data.product_metrics.map((row: any, idx: number) => {
+                        const pid = normId(row.product_id)
+                        const styles = stylesByProduct[pid] || []
+                        const isOpen = expanded.has(pid)
+                        return (
+                          <Fragment key={idx}>
+                            <TableRow>
+                              {productColumns.map((col) => renderMetricCell(row, col, {
+                                isExpander: col.key === "product_id" && styles.length > 0,
+                                isOpen,
+                                onToggle: () => toggleExpand(pid),
+                              }))}
+                            </TableRow>
+                            {isOpen &&
+                              styles.map((s: any, si: number) => {
+                                const srow = {
+                                  ...s,
+                                  product_id: normId(s.style_id),
+                                  product_name: `↳ ${s.style_name || s.style_id || "未命名规格"}`,
+                                }
+                                return (
+                                  <TableRow key={`s-${si}`} className="bg-muted/40">
+                                    {productColumns.map((col) => renderMetricCell(srow, col, {}))}
+                                  </TableRow>
+                                )
+                              })}
+                          </Fragment>
+                        )
+                      })}
                       {data.product_metrics.length === 0 && (
                         <TableRow>
                           <TableCell colSpan={productColumns.length} className="text-center text-muted-foreground">
-                            无数据
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="styles">
-            <Card>
-              <CardHeader>
-                <CardTitle>样式指标（{data.style_metrics.length} 条）</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        {styleColumns.map((col) => (
-                          <TableHead key={col.key} className="whitespace-nowrap text-xs">
-                            {col.label}
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {data.style_metrics.map((row: any, idx: number) => (
-                        <TableRow key={idx}>
-                          {styleColumns.map((col) => (
-                            <TableCell key={col.key} className="text-xs whitespace-nowrap">
-                              {formatNumber(row[col.key])}
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                      ))}
-                      {data.style_metrics.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={styleColumns.length} className="text-center text-muted-foreground">
                             无数据
                           </TableCell>
                         </TableRow>
