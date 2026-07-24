@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react"
 import { LayoutDashboard, Calendar, BarChart3 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { MetricLineChart } from "@/components/metric-line-chart"
+import { HideableKpiCard, HiddenKpiList } from "@/components/hideable-kpi"
+import { useHiddenKpis } from "@/hooks/use-hidden-kpis"
 import { getStores, getDouyinDashboardSummary, getDouyinAnalysis, type Store } from "@/api/client"
 
 function formatNumber(v: any, digits = 2) {
@@ -71,20 +73,22 @@ function downloadCsv(filename: string, rows: Record<string, any>[], headers: { k
   URL.revokeObjectURL(url)
 }
 
-function KpiCard({ label, value, unit = "" }: { label: string; value: any; unit?: string }) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardDescription className="text-xs">{label}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <CardTitle className="text-xl">
-          {formatNumber(value)} {unit && <span className="text-sm font-normal text-muted-foreground">{unit}</span>}
-        </CardTitle>
-      </CardContent>
-    </Card>
-  )
-}
+const overviewKpis = [
+  { key: "selected_stores", label: "已选店铺" },
+  { key: "spend", label: "总消耗", unit: "元" },
+  { key: "gmv", label: "成交金额", unit: "元" },
+  { key: "valid_gmv", label: "净成交金额", unit: "元" },
+  { key: "actual_revenue", label: "实际收入", unit: "元" },
+  { key: "order_count", label: "订单数" },
+  { key: "valid_order_count", label: "净订单数" },
+  { key: "roi", label: "ROI" },
+  { key: "ctr", label: "点击率", unit: "%" },
+  { key: "total_cost", label: "总成本", unit: "元" },
+  { key: "gross_profit", label: "毛利润", unit: "元" },
+  { key: "profit_loss", label: "盈亏", unit: "元" },
+  { key: "gross_margin_rate", label: "毛利率", unit: "%" },
+  { key: "profit_loss_rate", label: "盈亏率", unit: "%" },
+]
 
 const trendCharts = [
   {
@@ -124,6 +128,7 @@ export function DouyinDashboardPage() {
   const [productMetrics, setProductMetrics] = useState<Record<string, any>[]>([])
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState("")
+  const { hiddenKpis, toggleKpi } = useHiddenKpis("douyin_hidden_kpis")
 
   useEffect(() => {
     getStores("douyin").then((s) => {
@@ -167,6 +172,14 @@ export function DouyinDashboardPage() {
   const toggleStore = (name: string) => {
     setSelectedStores((prev) => (prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]))
   }
+
+  const overviewKpiValues: Record<string, number | null> = {
+    ...kpis,
+    ...costKpis,
+    selected_stores: selectedStores.length,
+  }
+  const visibleOverviewKpis = overviewKpis.filter((item) => !hiddenKpis.has(item.key))
+  const hiddenOverviewKpis = overviewKpis.filter((item) => hiddenKpis.has(item.key))
 
   return (
     <div className="space-y-4">
@@ -216,21 +229,17 @@ export function DouyinDashboardPage() {
       </Card>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-        <KpiCard label="已选店铺" value={selectedStores.length} />
-        <KpiCard label="总消耗" value={kpis.spend} unit="元" />
-        <KpiCard label="成交金额" value={kpis.gmv} unit="元" />
-        <KpiCard label="净成交金额" value={kpis.valid_gmv} unit="元" />
-        <KpiCard label="实际收入" value={kpis.actual_revenue} unit="元" />
-        <KpiCard label="订单数" value={kpis.order_count} />
-        <KpiCard label="净订单数" value={kpis.valid_order_count} />
-        <KpiCard label="ROI" value={kpis.roi} />
-        <KpiCard label="点击率" value={kpis.ctr} unit="%" />
-        <KpiCard label="总成本" value={costKpis.total_cost} unit="元" />
-        <KpiCard label="毛利润" value={costKpis.gross_profit} unit="元" />
-        <KpiCard label="盈亏" value={costKpis.profit_loss} unit="元" />
-        <KpiCard label="毛利率" value={costKpis.gross_margin_rate} unit="%" />
-        <KpiCard label="盈亏率" value={costKpis.profit_loss_rate} unit="%" />
+        {visibleOverviewKpis.map((item) => (
+          <HideableKpiCard
+            key={item.key}
+            label={item.label}
+            value={overviewKpiValues[item.key]}
+            unit={item.unit}
+            onHide={() => toggleKpi(item.key)}
+          />
+        ))}
       </div>
+      <HiddenKpiList items={hiddenOverviewKpis} onRestore={toggleKpi} />
 
       <Card>
         <CardHeader>

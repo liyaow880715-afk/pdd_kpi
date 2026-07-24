@@ -1,33 +1,14 @@
 import { useEffect, useState } from "react"
 import { BarChart3, Store, Calendar } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { MetricLineChart } from "@/components/metric-line-chart"
+import { HideableKpiCard, HiddenKpiList } from "@/components/hideable-kpi"
+import { useHiddenKpis } from "@/hooks/use-hidden-kpis"
 import { getStores, getDashboardSummary, type Kpis } from "@/api/client"
-
-function formatNumber(v: any, digits = 2) {
-  if (v === null || v === undefined || Number.isNaN(v)) return "-"
-  if (typeof v === "number") return v.toLocaleString("zh-CN", { maximumFractionDigits: digits })
-  return v
-}
-
-function KpiCard({ label, value, unit = "" }: { label: string; value: any; unit?: string }) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardDescription className="text-xs">{label}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <CardTitle className="text-xl">
-          {formatNumber(value)} {unit && <span className="text-sm font-normal text-muted-foreground">{unit}</span>}
-        </CardTitle>
-      </CardContent>
-    </Card>
-  )
-}
 
 const kpiGroups = [
   {
@@ -145,6 +126,7 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState("")
   const [activeTab, setActiveTab] = useState("overview")
+  const { hiddenKpis, toggleKpi } = useHiddenKpis("pdd_hidden_kpis")
 
   useEffect(() => {
     getStores("pdd").then((s) => {
@@ -269,8 +251,10 @@ export function DashboardPage() {
 
           <TabsContent value="overview" className="space-y-4">
             {kpiGroups.map((group) => {
-              const items = group.items.filter((item) => kpis[item.key] !== undefined && kpis[item.key] !== null)
-              if (items.length === 0) return null
+              const allItems = group.items.filter((item) => kpis[item.key] !== undefined && kpis[item.key] !== null)
+              const visibleItems = allItems.filter((item) => !hiddenKpis.has(item.key))
+              const hiddenItems = allItems.filter((item) => hiddenKpis.has(item.key))
+              if (allItems.length === 0) return null
               return (
                 <Card key={group.title}>
                   <CardHeader>
@@ -278,10 +262,17 @@ export function DashboardPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                      {items.map((item) => (
-                        <KpiCard key={item.key} label={item.label} value={kpis[item.key]} unit={item.unit} />
+                      {visibleItems.map((item) => (
+                        <HideableKpiCard
+                          key={item.key}
+                          label={item.label}
+                          value={kpis[item.key]}
+                          unit={item.unit}
+                          onHide={() => toggleKpi(item.key)}
+                        />
                       ))}
                     </div>
+                    <HiddenKpiList items={hiddenItems} onRestore={toggleKpi} />
                   </CardContent>
                 </Card>
               )
